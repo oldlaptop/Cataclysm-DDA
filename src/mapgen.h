@@ -131,7 +131,7 @@ protected:
     jmapgen_piece() { }
 public:
     /** Place something on the map m at (x,y). mon_density */
-    virtual void apply( map &m, size_t x, size_t y, float mon_density ) const = 0;
+    virtual void apply( map &m, const jmapgen_int &x, const jmapgen_int &y, float mon_density ) const = 0;
     virtual ~jmapgen_piece() { }
 };
 
@@ -226,10 +226,7 @@ class mapgen_function_lua : public virtual mapgen_function {
     mapgen_function_lua(std::string s, int w = 1000) : mapgen_function( w ), scr(s) {
         // scr = s; // todo; if ( luaL_loadstring(L, scr.c_str() ) ) { error }
     }
-#if defined(LUA)
-    // Prevents instantiating this class in non-lua builds
     virtual void generate(map*, oter_id, mapgendata, int, float) override;
-#endif
 };
 /////////////////////////////////////////////////////////
 ///// global per-terrain mapgen function lists

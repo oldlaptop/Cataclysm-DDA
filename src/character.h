@@ -4,8 +4,11 @@
 #include "creature.h"
 #include "inventory.h"
 #include "bionics.h"
+#include "skill.h"
 
 #include <map>
+
+using skill_id = string_id<Skill>;
 
 enum vision_modes {
     DEBUG_NIGHTVISION,
@@ -19,7 +22,16 @@ enum vision_modes {
     FELINE_VISION,
     BIRD_EYE,
     URSINE_VISION,
+    BOOMERED,
+    DARKNESS,
     NUM_VISION_MODES
+};
+
+enum fatigue_levels {
+    TIRED = 191,
+    DEAD_TIRED = 383,
+    EXHAUSTED = 575,
+    MASSIVE_FATIGUE = 1000
 };
 
 class Character : public Creature
@@ -31,6 +43,92 @@ class Character : public Creature
         field_id gibType() const override;
         virtual bool is_warm() const override;
         virtual const std::string &symbol() const override;
+
+        // Character stats
+        // TODO: Make those protected
+        int str_max;
+        int dex_max;
+        int int_max;
+        int per_max;
+
+        int str_cur;
+        int dex_cur;
+        int int_cur;
+        int per_cur;
+
+        // The prevalence of getter, setter, and mutator functions here is partially
+        // a result of the slow, piece-wise migration of the player class upwards into
+        // the character class. As enough logic is moved upwards to fully separate
+        // utility upwards out of the player class, as many of these as possible should
+        // be eliminated to allow for proper code separation. (Note: Not "all", many").
+        /** Getters for stats exclusive to characters */
+        virtual int get_str() const;
+        virtual int get_dex() const;
+        virtual int get_per() const;
+        virtual int get_int() const;
+
+        virtual int get_str_base() const;
+        virtual int get_dex_base() const;
+        virtual int get_per_base() const;
+        virtual int get_int_base() const;
+
+        virtual int get_str_bonus() const;
+        virtual int get_dex_bonus() const;
+        virtual int get_per_bonus() const;
+        virtual int get_int_bonus() const;
+
+        /** Setters for stats exclusive to characters */
+        virtual void set_str_bonus(int nstr);
+        virtual void set_dex_bonus(int ndex);
+        virtual void set_per_bonus(int nper);
+        virtual void set_int_bonus(int nint);
+        virtual void mod_str_bonus(int nstr);
+        virtual void mod_dex_bonus(int ndex);
+        virtual void mod_per_bonus(int nper);
+        virtual void mod_int_bonus(int nint);
+
+        /** Getters for health values exclusive to characters */
+        virtual int get_healthy() const;
+        virtual int get_healthy_mod() const;
+
+        /** Modifiers for health values exclusive to characters */
+        virtual void mod_healthy(int nhealthy);
+        virtual void mod_healthy_mod(int nhealthy_mod, int cap);
+
+        /** Setters for health values exclusive to characters */
+        virtual void set_healthy(int nhealthy);
+        virtual void set_healthy_mod(int nhealthy_mod);
+
+        /** Getter for need values exclusive to characters */
+        virtual int get_hunger() const;
+        virtual int get_stomach_food() const;
+        virtual int get_stomach_water() const;
+
+        /** Modifiers for need values exclusive to characters */
+        virtual void mod_hunger(int nhunger);
+        virtual void mod_stomach_food(int n_stomach_food);
+        virtual void mod_stomach_water(int n_stomach_water);
+
+        /** Setters for need values exclusive to characters */
+        virtual void set_hunger(int nhunger);
+        virtual void set_stomach_food(int n_stomach_food);
+        virtual void set_stomach_water(int n_stomach_water);
+
+        virtual void mod_stat( const std::string &stat, int modifier ) override;
+
+        /** Combat getters */
+        virtual int get_dodge_base() const override;
+        virtual int get_hit_base() const override;
+
+        /** Handles health fluctuations over time */
+        virtual void update_health(int external_modifiers = 0);
+
+        /** Resets the value of all bonus fields to 0. */
+        virtual void reset_bonuses() override;
+        /** Resets stats, and applies effects in an idempotent manner */
+        virtual void reset_stats() override;
+        /** Handles stat and bonus reset. */
+        virtual void reset() override;
 
         /** Processes effects which may prevent the Character from moving (bear traps, crushed, etc.).
          *  Returns false if movement is stopped. */
@@ -74,13 +172,26 @@ class Character : public Creature
         /** Returns true if the player has the entered starting trait */
         bool has_base_trait(const std::string &flag) const;
         /** Returns the trait id with the given invlet, or an empty string if no trait has that invlet */
-        std::string trait_by_invlet( char ch ) const;
+        std::string trait_by_invlet( long ch ) const;
 
         /** Toggles a trait on the player and in their mutation list */
         void toggle_trait(const std::string &flag);
         /** Add or removes a mutation on the player, but does not trigger mutation loss/gain effects. */
         void set_mutation(const std::string &flag);
         void unset_mutation(const std::string &flag);
+
+        /**
+         * Displays menu with body part hp, optionally with hp estimation after healing.
+         * Returns selected part.
+         */
+        hp_part body_window( bool precise = false ) const;
+        hp_part body_window( const std::string &menu_header,
+                             bool show_all, bool precise,
+                             int normal_bonus, int head_bonus, int torso_bonus,
+                             int bleed, int bite, int infect ) const;
+
+        // Returns color which this limb would have in healing menus
+        nc_color limb_color( body_part bp, bool bleed, bool bite, bool infect ) const;
 
  private:
         /** Retrieves a stat mod of a mutation. */
@@ -230,6 +341,17 @@ class Character : public Creature
          */
         std::list<item> remove_worn_items_with( std::function<bool(item &)> filter );
 
+        item &i_at(int position);  // Returns the item with a given inventory position.
+        const item &i_at(int position) const;
+        /**
+         * Returns the item position (suitable for @ref i_at or similar) of a
+         * specific item. Returns INT_MIN if the item is not found.
+         * Note that this may lose some information, for example the returned position is the
+         * same when the given item points to the container and when it points to the item inside
+         * the container. All items that are part of the same stack have the same item position.
+         */
+        int get_item_position( const item *it ) const;
+
         item &i_add(item it);
         /**
          * Remove a specific item from player possession. The item is compared
@@ -263,6 +385,14 @@ class Character : public Creature
         item remove_weapon();
         void remove_mission_items(int mission_id);
 
+        /**
+         * Returns the items that are ammo and have the matching ammo type.
+         */
+        std::vector<const item *> get_ammo( const ammotype &at ) const;
+
+        /** Returns true if the character's current weapon can be reloaded (ammo must be available). */
+        bool can_reload();
+
         int weight_carried() const;
         int volume_carried() const;
         int weight_capacity() const override;
@@ -285,12 +415,12 @@ class Character : public Creature
         // --------------- Skill Stuff ---------------
         SkillLevel &skillLevel(const Skill* _skill);
         SkillLevel &skillLevel(Skill const &_skill);
-        SkillLevel &skillLevel(std::string ident);
+        SkillLevel &skillLevel(const skill_id &ident);
 
         /** for serialization */
         SkillLevel const& get_skill_level(const Skill* _skill) const;
         SkillLevel const& get_skill_level(const Skill &_skill) const;
-        SkillLevel const& get_skill_level(const std::string &ident) const;
+        SkillLevel const& get_skill_level(const skill_id &ident) const;
 
         // --------------- Other Stuff ---------------
 
@@ -313,20 +443,21 @@ class Character : public Creature
         virtual void normalize() override;
         virtual void die(Creature *nkiller) override;
 
-        /** Resets stats, and applies effects in an idempotent manner */
-        virtual void reset_stats() override;
-
         /** Returns true if the player has some form of night vision */
         bool has_nv();
 
         // In newcharacter.cpp
         void empty_skills();
         /** Returns a random name from NAMES_* */
-        void pick_name();
+        void pick_name(bool bUseDefault = false);
         /** Get the idents of all base traits. */
         std::vector<std::string> get_base_traits() const;
         /** Get the idents of all traits/mutations. */
         std::vector<std::string> get_mutations() const;
+        const std::bitset<NUM_VISION_MODES> &get_vision_modes() const
+        {
+            return vision_mode_cache;
+        }
         /** Empties the trait list */
         void empty_traits();
         void add_traits();
@@ -370,6 +501,17 @@ class Character : public Creature
             using JsonDeserializer::deserialize;
             void deserialize( JsonIn &jsin ) override;
         };
+
+        /** Bonuses to stats, calculated each turn */
+        int str_bonus;
+        int dex_bonus;
+        int per_bonus;
+        int int_bonus;
+
+        /** How healthy the character is. */
+        int healthy;
+        int healthy_mod;
+
         /**
          * Traits / mutations of the character. Key is the mutation id (it's also a valid
          * key into @ref mutation_data), the value describes the status of the mutation.
@@ -386,6 +528,9 @@ class Character : public Creature
         void load(JsonObject &jsin);
 
         // --------------- Values ---------------
+        /** Needs (hunger, thirst, fatigue, etc.) */
+        int hunger, stomach_food, stomach_water;
+
         std::map<const Skill*, SkillLevel> _skills;
 
         // Cached vision values.

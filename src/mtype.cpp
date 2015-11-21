@@ -1,12 +1,17 @@
 #include "mtype.h"
+#include "creature.h"
 #include "translations.h"
 #include "monstergenerator.h"
 #include "mondeath.h"
 #include "field.h"
 
+#include <algorithm>
+
+const species_id MOLLUSK( "MOLLUSK" );
+
 mtype::mtype ()
 {
-    id = "mon_null";
+    id = NULL_ID;
     name = "human";
     name_plural = "humans";
     description = "";
@@ -19,6 +24,7 @@ mtype::mtype ()
     agro = 0;
     morale = 0;
     speed = 0;
+    attack_cost = 100;
     melee_skill = 0;
     melee_dice = 0;
     melee_sides = 0;
@@ -30,8 +36,8 @@ mtype::mtype ()
     def_chance = 0;
     upgrades = false;
     half_life = -1;
-    upgrade_into = "NULL";
-    upgrade_group = mongroup_id( "GROUP_NULL" );
+    upgrade_into = NULL_ID;
+    upgrade_group = NULL_ID;
     dies.push_back(&mdeath::normal);
     sp_attack.push_back(nullptr);
     sp_defense = nullptr;
@@ -89,20 +95,20 @@ bool mtype::in_category(std::string category) const
     return (categories.find(category) != categories.end());
 }
 
-bool mtype::in_species(std::string spec) const
+bool mtype::in_species( const species_id &spec ) const
 {
-    return (species.find(spec) != species.end());
+    return species.count( spec ) > 0;
 }
 
-bool mtype::in_species( int spec_id ) const
+bool mtype::in_species( const species_type &spec ) const
 {
-    return ( species_id.find(spec_id) != species_id.end() );
+    return species_ptrs.count( &spec ) > 0;
 }
 
 bool mtype::same_species( const mtype &other ) const
 {
-    for( int s : species_id ) {
-        if( other.in_species( s ) ) {
+    for( auto &s : species_ptrs ) {
+        if( other.in_species( *s ) ) {
             return true;
         }
     }
@@ -136,7 +142,7 @@ field_id mtype::bloodType() const
 
 field_id mtype::gibType() const
 {
-    if (has_flag(MF_LARVA) || in_species("MOLLUSK")) {
+    if (has_flag(MF_LARVA) || in_species( MOLLUSK )) {
         return fd_gibs_invertebrate;
     }
     if( has_material("veggy") ) {

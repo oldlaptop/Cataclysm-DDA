@@ -18,26 +18,23 @@ class Creature;
 class monster;
 class monfaction;
 struct projectile;
+struct dealt_projectile_attack;
+struct species_type;
 enum field_id : int;
 enum body_part : int;
+enum m_size : int;
 
 using mon_action_death  = void (*)(monster*);
 using mon_action_attack = void (*)(monster*, int);
-using mon_action_defend = void (*)(monster*, Creature*, projectile const*);
+using mon_action_defend = void (*)(monster&, Creature*, dealt_projectile_attack const*);
 struct MonsterGroup;
 using mongroup_id = string_id<MonsterGroup>;
-
+struct mtype;
+using mtype_id = string_id<mtype>;
 using mfaction_id = int_id<monfaction>;
+using species_id = string_id<species_type>;
 
 typedef std::string itype_id;
-
-enum m_size : int {
-    MS_TINY = 0,    // Squirrel
-    MS_SMALL,      // Dog
-    MS_MEDIUM,    // Human
-    MS_LARGE,    // Cow
-    MS_HUGE     // TAAAANK
-};
 
 // These are triggers which may affect the monster's anger or morale.
 // They are handled in monster::check_triggers(), in monster.cpp
@@ -99,7 +96,7 @@ enum m_flag : int {
     MF_ELECTRIC,            // Shocks unarmed attackers
     MF_ACIDPROOF,           // Immune to acid
     MF_ACIDTRAIL,           // Leaves a trail of acid
-    MF_FIREPROOF,           //Immune to fire
+    MF_FIREPROOF,           // Immune to fire
     MF_SLUDGEPROOF,         // Ignores the effect of sludge trails
     MF_SLUDGETRAIL,         // Causes monster to leave a sludge trap trail when moving
     MF_LEAKSGAS,            // Occasionally leaks gas when moving
@@ -141,7 +138,7 @@ enum m_flag : int {
     MF_GROUP_BASH,          // Monsters that can pile up against obstacles and add their strength together to break them.
     MF_SWARMS,              // Monsters that like to group together and form loose packs
     MF_GROUP_MORALE,        // Monsters that are more courageous when near friends
-    MF_INTERIOR_AMMO,       // Monster contain's its ammo inside itself, no need to load on launch.
+    MF_INTERIOR_AMMO,       // Monster contain's its ammo inside itself, no need to load on launch. Prevents ammo from being dropped on disable.
     MF_CLIMBS,              // Monsters that can climb certain terrain and furniture
     MF_PUSH_MON,            // Monsters that can push creatures out of their way
     MF_MAX                  // Sets the length of the flags - obviously must be LAST
@@ -165,11 +162,13 @@ struct mtype {
         friend class MonsterGenerator;
         std::string name;
         std::string name_plural;
+
+        std::set< const species_type* > species_ptrs;
     public:
-        std::string id;
+        mtype_id id;
         std::string description;
-        std::set<std::string> species, categories;
-        std::set< int > species_id;
+        std::set<species_id> species;
+        std::set<std::string> categories;
         mfaction_id default_faction;
         /** UTF-8 encoded symbol, should be exactyle one cell wide. */
         std::string sym;
@@ -195,6 +194,8 @@ struct mtype {
         int vision_night; // Vision range in total darkness
 
         int  speed;       // Speed; human = 100
+        // Number of moves per regular attack.
+        int attack_cost;
         unsigned char melee_skill; // Melee hit skill, 20 is superhuman hitting abilities.
         unsigned char melee_dice;  // Number of dice on melee hit
         unsigned char melee_sides; // Number of sides those dice have
@@ -221,7 +222,7 @@ struct mtype {
         // Monster upgrade variables
         bool upgrades;
         int half_life;
-        std::string upgrade_into;
+        mtype_id upgrade_into;
         mongroup_id upgrade_group;
         // Default constructor
         mtype ();
@@ -247,8 +248,8 @@ struct mtype {
         bool has_fear_trigger(monster_trigger trigger) const;
         bool has_placate_trigger(monster_trigger trigger) const;
         bool in_category(std::string category) const;
-        bool in_species(std::string _species) const;
-        bool in_species( int spec_id ) const;
+        bool in_species( const species_id &spec ) const;
+        bool in_species( const species_type &spec ) const;
         //Used for corpses.
         field_id bloodType () const;
         field_id gibType () const;

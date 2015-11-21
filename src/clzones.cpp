@@ -14,8 +14,8 @@
 
 zone_manager::zone_manager()
 {
-    types["NO_AUTO_PICKUP"] = _("No Auto Pickup");
-    types["NO_NPC_PICKUP"] = _("No NPC Pickup");
+    types["NO_AUTO_PICKUP"] = _( "No Auto Pickup" );
+    types["NO_NPC_PICKUP"] = _( "No NPC Pickup" );
 }
 
 void zone_manager::zone_data::set_name()
@@ -215,7 +215,7 @@ void zone_manager::load_zones()
     try {
         JsonIn jsin( fin );
         deserialize( jsin );
-    } catch( std::string e ) {
+    } catch( const JsonError &e ) {
         DebugLog( D_ERROR, DC_ALL ) << "load_zones: " << e;
     }
 

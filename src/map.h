@@ -43,6 +43,12 @@ struct ter_t;
 using ter_id = int_id<ter_t>;
 struct furn_t;
 using furn_id = int_id<furn_t>;
+struct mtype;
+using mtype_id = string_id<mtype>;
+struct projectile;
+struct veh_collision;
+class tileray;
+
 // TODO: This should be const& but almost no functions are const
 struct wrapped_vehicle{
  int x;
@@ -66,7 +72,6 @@ class map;
 enum ter_bitflags : int;
 template<typename T>
 struct id_or_id;
-struct map_bash_item_drop;
 
 class map_stack : public item_stack {
 private:
@@ -101,6 +106,26 @@ struct visibility_variables {
     bool u_sight_impaired;
     bool u_is_boomered;
     float vision_threshold;
+};
+
+struct bash_params {
+    int strength; // Initial strength
+
+    bool silent; // Make a sound?
+    bool destroy; // Essentially infinite bash strength + some
+    bool bash_floor; // Do we want to bash floor if no furn/wall exists?
+    /**
+     * Value from 0.0 to 1.0 that affects interpolation between str_min and str_max
+     * At 0.0, the bash is against str_min of targetted objects
+     * This is required for proper "piercing" bashing, so that one strong hit
+     * can destroy a wall and a floor under it rather than only one at a time.
+     */
+    float roll;
+
+    bool did_bash; // Was anything hit?
+    bool success; // Was anything destroyed?
+
+    bool bashed_solid; // Did we bash furniture, terrain or vehicle
 };
 
 enum visibility_type {
@@ -233,9 +258,13 @@ class map
     * @param view_center_x, view_center_y The center of the viewport to be rendered,
     *        see `center` in `map::draw()`
     */
-    void drawsq( WINDOW* w, player &u, const tripoint &p, const bool invert, const bool show_items,
-                 const int view_center_x = -1, const int view_center_y = -1,
-                 const bool low_light = false, const bool bright_level = false, const bool inorder = false);
+    void drawsq( WINDOW* w, player &u, const tripoint &p,
+                 const bool invert = false, const bool show_items = true ) const;
+    void drawsq( WINDOW* w, player &u, const tripoint &p,
+                 const bool invert, const bool show_items,
+                 const tripoint &view_center,
+                 const bool low_light = false, const bool bright_level = false,
+                 const bool inorder = false) const;
 
     /**
      * Add currently loaded submaps (in @ref grid) to the @ref mapbuffer.
@@ -336,45 +365,39 @@ public:
                      const bool bash = false, const bool flying = false ) const;
 
 
-// 2D Sees:
-    /**
-    * Returns whether `(Fx, Fy)` sees `(Tx, Ty)` with a view range of `range`.
-    *
-    * @param bresenham_slope Indicates the Bresenham line used to connect the two points, and may
-    *                        subsequently be used to form a path between them.
-    *                        Set to zero if the function returns false.
-    */
-    bool sees(const int Fx, const int Fy, const int Tx, const int Ty,
-              const int range, int &bresenham_slope) const;
-    bool sees( point F, point T, int range, int &bresenham_slope ) const;
 // 3D Sees:
     /**
     * Returns whether `F` sees `T` with a view range of `range`.
-    *
-    * @param t1 Indicates the x/y component of Bresenham line used to connect the two points, and may
-    *           subsequently be used to form a path between them. Set to zero if the function returns false.
-    * @param t2 Indicates the horizontal/vertical component of the Bresenham line.
-                Set to zero if the function returns false.
     */
-    bool sees( const tripoint &F, const tripoint &T, int range, int &t1, int &t2 ) const;
     bool sees( const tripoint &F, const tripoint &T, int range ) const;
-
- /**
-  * Check whether there's a direct line of sight between `(Fx, Fy)` and
-  * `(Tx, Ty)` with the additional movecost restraints.
-  *
-  * Checks two things:
-  * 1. The `sees()` algorithm between `(Fx, Fy)` and `(Tx, Ty)`
-  * 2. That moving over the line of sight would have a move_cost between
-  *    `cost_min` and `cost_max`.
-  */
- bool clear_path(const int Fx, const int Fy, const int Tx, const int Ty,
-                 const int range, const int cost_min, const int cost_max, int &bresenham_slope) const;
-    bool clear_path( const tripoint &f, const tripoint &t, const int range,
-                     const int cost_min, const int cost_max, int &bres1, int &bres2 ) const;
+ private:
+    /**
+     * Don't expose the slope adjust outside map functions.
+     *
+     * @param bresenham_slope Indicates the start offset of Bresenham line used to connect
+     * the two points, and may subsequently be used to form a path between them.
+     * Set to zero if the function returns false.
+    **/
+    bool sees( const tripoint &F, const tripoint &T, int range, int &bresenham_slope ) const;
+ public:
+    /**
+     * Check whether there's a direct line of sight between `F` and
+     * `T` with the additional movecost restraints.
+     *
+     * Checks two things:
+     * 1. The `sees()` algorithm between `F` and `T`
+     * 2. That moving over the line of sight would have a move_cost between
+     *    `cost_min` and `cost_max`.
+     */
     bool clear_path( const tripoint &f, const tripoint &t, const int range,
                      const int cost_min, const int cost_max ) const;
 
+    /**
+     * Iteratively tries bresenham lines with different biases
+     * until it finds a clear line or decides there isn't one.
+     * returns the line found, which may be the staright line, but blocked.
+     */
+    std::vector<tripoint> find_clear_path( const tripoint &source, const tripoint&destination ) const;
 
     /**
      * Check whether items in the target square are accessible from the source square
@@ -413,27 +436,17 @@ public:
  int coord_to_angle(const int x, const int y, const int tgtx, const int tgty) const;
 // Vehicles: Common to 2D and 3D
     VehicleList get_vehicles();
-    void update_vehicle_cache(vehicle *, const bool brand_new = false);
-    void reset_vehicle_cache( const int zlev );
-    void clear_vehicle_cache( const int zlev );
-    void clear_vehicle_list( const int zlev );
+    void add_vehicle_to_cache( vehicle * );
+    void update_vehicle_cache( vehicle *, int old_zlevel );
+    void reset_vehicle_cache( int zlev );
+    void clear_vehicle_cache( int zlev );
+    void clear_vehicle_list( int zlev );
     void update_vehicle_list( submap * const to, const int zlev );
 
     void destroy_vehicle (vehicle *veh);
     void vehmove();          // Vehicle movement
-    const vehicle *vehproceed(); // Returns the vehicle that moved
+    bool vehproceed(); // Returns true if a vehicle moved, false otherwise
 
-// 2D overloads for vehicles
-    VehicleList get_vehicles(const int sx, const int sy, const int ex, const int ey);
-    vehicle* veh_at(const int x, const int y, int &part_num);
-    const vehicle* veh_at(const int x, const int y, int &part_num) const;
-    const vehicle* veh_at_internal(const int x, const int y, int &part_num) const;
-    vehicle* veh_at(const int x, const int y);
-    const vehicle* veh_at(const int x, const int y) const;
-    point veh_part_coordinates(const int x, const int y);
-    void board_vehicle(int x, int y, player *p);
-    void unboard_vehicle(const int x, const int y);
-    bool displace_vehicle (int &x, int &y, const int dx, const int dy, bool test = false);
 // 3D vehicles
     VehicleList get_vehicles( const tripoint &start, const tripoint &end );
     /**
@@ -461,12 +474,38 @@ public:
     void board_vehicle( const tripoint &p, player *pl );
     void unboard_vehicle( const tripoint &p );//remove player from vehicle at p
     // Change vehicle coords and move vehicle's driver along.
-    // Returns true, if there was a submap change.
-    // If test is true, function only checks for submap change, no displacement
     // WARNING: not checking collisions!
-    bool displace_vehicle( tripoint &p, const tripoint &dp, bool test = false );
+    void displace_vehicle( tripoint &p, const tripoint &dp );
     // move water under wheels. true if moved
     bool displace_water( const tripoint &dp );
+
+    // Returns the modifier on wheel area due to bad surface
+    // 1.0 on road, 0.0 in air
+    // <0.0 when the vehicle should be destroyed (sunk in water)
+    // TODO: Add the values between 0.0 and 1.0 for offroading
+    // TODO: Remove the ugly sinking vehicle hack
+    float vehicle_traction( vehicle &veh ) const;
+
+    // Like traction, except for water
+    // TODO: Actually implement (this is a stub)
+    // TODO: Test for it when the vehicle sinks rather than when it has VP_FLOATS
+    float vehicle_buoyancy( vehicle &veh ) const;
+
+    // Returns if the vehicle should fall down a z-level
+    bool vehicle_falling( vehicle &veh );
+
+    // Executes vehicle-vehicle collision based on vehicle::collision results
+    // Returns impulse of the executed collision
+    // If vector contains collisions with vehicles other than veh2, they will be ignored
+    float vehicle_vehicle_collision( vehicle &veh, vehicle &veh2,
+                                     const std::vector<veh_collision> &collisions );
+    // Throws vehicle passengers about the vehicle, possibly out of it
+    // Returns change in vehicle orientation due to lost control
+    int shake_vehicle( vehicle &veh, int velocity_before, int direction );
+
+    // Actually moves the vehicle
+    // Unlike displace_vehicle, this one handles collisions
+    void move_vehicle( vehicle &veh, const tripoint &dp, const tileray &facing );
 
 // Furniture: 2D overloads
     void set(const int x, const int y, const ter_id new_terrain, const furn_id new_furniture);
@@ -659,16 +698,14 @@ void add_corpse( const tripoint &p );
 // Destruction
      /** Keeps bashing a square until it can't be bashed anymore */
     void destroy( const tripoint &p, const bool silent = false);
-    void destroy( int, int ) = delete;
     /** Keeps bashing a square until there is no more furniture */
     void destroy_furn( const tripoint &p, const bool silent = false );
     void crush( const tripoint &p );
-    void shoot( const tripoint &p, int &dam, const bool hit_items,
-                const std::set<std::string>& ammo_effects );
+    void shoot( const tripoint &p, projectile &proj, const bool hit_items );
     /** Checks if a square should collapse, returns the X for the one_in(X) collapse chance */
     int collapse_check( const tripoint &p );
-    /** Causes a collapse at (x, y), such as from destroying a wall */
-    void collapse_at( const tripoint &p );
+    /** Causes a collapse at p, such as from destroying a wall */
+    void collapse_at( const tripoint &p, bool silent );
     /** Tries to smash the items at the given tripoint. Used by the explosion code */
     void smash_items( const tripoint &p, const int power );
     /**
@@ -676,14 +713,12 @@ void add_corpse( const tripoint &p );
      *
      * @param silent Don't produce any sound
      * @param destroy Destroys some otherwise unbashable tiles
-     * @param bashing_vehicle Vehicle NOT to bash (to prevent vehicle bashing itself)
      * @param bash_floor Allow bashing the floor and the tile that supports it
+     * @param bashing_vehicle Vehicle that should NOT be bashed (because it is doing the bashing)
      */
-    std::pair<bool, bool> bash( const tripoint &p, const int str, bool silent = false,
-                                bool destroy = false, vehicle *bashing_vehicle = nullptr,
-                                bool bash_floor = false );
-    /** Spawn items from the list, see map_bash_item_drop */
-    void spawn_item_list( const std::vector<map_bash_item_drop> &items, const tripoint &p );
+    bash_params bash( const tripoint &p, int str, bool silent = false,
+                      bool destroy = false, bool bash_floor = false,
+                      const vehicle *bashing_vehicle = nullptr );
 
 // Effects of attacks/items
     bool hit_with_acid( const tripoint &p );
@@ -762,9 +797,6 @@ void add_corpse( const tripoint &p );
     void i_rem( const tripoint &p, const item* it );
     void spawn_artifact( const tripoint &p );
     void spawn_natural_artifact( const tripoint &p, const artifact_natural_property prop );
-    // Note: Passing the first argument by value, because some compilers don't warn about
-    // implicit cast of reference to int. Reference here could result in calling the
-    // 2D overload above instead with pointer to p as first param
     void spawn_item( const tripoint &p, const std::string &itype_id,
                      const unsigned quantity=1, const long charges=0,
                      const unsigned birthday=0, const int damlevel=0, const bool rand = true);
@@ -772,10 +804,10 @@ void add_corpse( const tripoint &p );
     int free_volume( const tripoint &p );
     int stored_volume( const tripoint &p );
     bool is_full( const tripoint &p, const int addvolume = -1, const int addnumber = -1 );
-    bool add_item_or_charges( const tripoint &p, item new_item, int overflow_radius = 2 );
-    void add_item_at( const tripoint &p, std::list<item>::iterator index, item new_item );
-    void add_item( const tripoint &p, item new_item );
-    void spawn_an_item( const tripoint &p, item new_item,
+    item &add_item_or_charges( const tripoint &p, item new_item, int overflow_radius = 2 );
+    item &add_item_at( const tripoint &p, std::list<item>::iterator index, item new_item );
+    item &add_item( const tripoint &p, item new_item );
+    item &spawn_an_item( const tripoint &p, item new_item,
                         const long charges, const int damlevel);
 
     /**
@@ -815,15 +847,15 @@ void add_corpse( const tripoint &p );
     int place_items( items_location loc, const int chance, const tripoint &f,
                      const tripoint &t, bool ongrass, const int turn, bool rand = true );
     /**
-    * Place items from an item group at (x,y). Places as much items as the item group says.
+    * Place items from an item group at p. Places as much items as the item group says.
     * (Most item groups are distributions and will only create one item.)
     * @param turn The birthday that the created items shall have.
-    * @return The number of placed items.
+    * @return Vector of pointers to placed items (can be empty, but no nulls).
     */
-    int put_items_from_loc( items_location loc, const tripoint &p, const int turn = 0 );
+    std::vector<item*> put_items_from_loc( items_location loc, const tripoint &p, const int turn = 0 );
 
     // Similar to spawn_an_item, but spawns a list of items, or nothing if the list is empty.
-    void spawn_items( const tripoint &p, const std::vector<item> &new_items );
+    std::vector<item*> spawn_items( const tripoint &p, const std::vector<item> &new_items );
     void create_anomaly( const tripoint &p, artifact_natural_property prop );
 
  /**
@@ -968,6 +1000,7 @@ public:
     bool has_floor( const tripoint &p ) const;
     /** Does this tile support vehicles and furniture above it */
     bool supports_above( const tripoint &p ) const;
+    bool has_floor_or_support( const tripoint &p ) const;
 
     /**
      * Handles map objects of given type (not creatures) falling down.
@@ -991,30 +1024,29 @@ public:
  void place_spawns(const mongroup_id& group, const int chance,
                    const int x1, const int y1, const int x2, const int y2, const float density);
  void place_gas_pump(const int x, const int y, const int charges);
+ void place_gas_pump(const int x, const int y, const int charges, std::string fuel_type);
  void place_toilet(const int x, const int y, const int charges = 6 * 4); // 6 liters at 250 ml per charge
  void place_vending(int x, int y, std::string type);
  int place_npc(int x, int y, std::string type);
 
- void add_spawn(std::string type, const int count, const int x, const int y, bool friendly = false,
+ void add_spawn(const mtype_id& type, const int count, const int x, const int y, bool friendly = false,
                 const int faction_id = -1, const int mission_id = -1,
                 std::string name = "NONE");
- vehicle *add_vehicle(const vgroup_id & type, const point &p, const int dir,
+ vehicle *add_vehicle(const vgroup_id &type, const point &p, const int dir,
                       const int init_veh_fuel = -1, const int init_veh_status = -1,
                       const bool merge_wrecks = true);
- vehicle *add_vehicle(const vproto_id & type, const int x, const int y, const int dir,
+ vehicle *add_vehicle(const vproto_id &type, const int x, const int y, const int dir,
                       const int init_veh_fuel = -1, const int init_veh_status = -1,
                       const bool merge_wrecks = true);
     void build_map_cache( int zlev, bool skip_lightmap = false );
 
-    vehicle *add_vehicle( const std::string &type, const tripoint &p, const int dir,
+    vehicle *add_vehicle( const vgroup_id &type, const tripoint &p, const int dir,
+                          const int init_veh_fuel = -1, const int init_veh_status = -1,
+                          const bool merge_wrecks = true);
+    vehicle *add_vehicle( const vproto_id &type, const tripoint &p, const int dir,
                           const int init_veh_fuel = -1, const int init_veh_status = -1,
                           const bool merge_wrecks = true);
 
-// Light/transparency: 2D
-    float light_transparency(const int x, const int y) const;
-    lit_level light_at(int dx, int dy) const; // Assumes 0,0 is light map center
-    float ambient_light_at(int dx, int dy) const; // Raw values for tilesets
-    bool trans(const int x, const int y) const; // Transparent?
 // Light/transparency: 3D
     float light_transparency( const tripoint &p ) const;
     lit_level light_at( const tripoint &p ) const; // Assumes 0,0 is light map center
@@ -1031,7 +1063,6 @@ public:
          * @param max_range All squares that are further away than this are invisible.
          * Ignored if smaller than 0.
          */
-        bool pl_sees( int tx, int ty, int max_range ) const;
         bool pl_sees( const tripoint &t, int max_range ) const;
     std::set<vehicle*> dirty_vehicle_list;
 
@@ -1151,7 +1182,7 @@ public:
  void build_outside_cache( int zlev );
 protected:
  void generate_lightmap( int zlev );
- void build_seen_cache(const tripoint &origin);
+ void build_seen_cache( const tripoint &origin, int target_z );
  void apply_character_light( const player &p );
 
  int my_MAPSIZE;
@@ -1228,35 +1259,47 @@ private:
                               const ter_t &terrain, bool allow_floor,
                               const vehicle *veh, const int part ) const;
 
-     /**
-      * Internal version of the drawsq. Keeps a cached maptile for less re-getting.
-      */
-     void draw_maptile( WINDOW* w, player &u, const tripoint &p, const maptile &tile,
-                        const bool invert, const bool show_items,
-                        const int view_center_x, const int view_center_y,
-                        const bool low_light, const bool bright_level, const bool inorder );
+    /**
+     * Internal version of the drawsq. Keeps a cached maptile for less re-getting.
+     * Returns true if it has drawn all it should, false if `draw_from_above` should be called after.
+     */
+    bool draw_maptile( WINDOW* w, player &u, const tripoint &p,
+                       const maptile &tile,
+                       bool invert, bool show_items,
+                       const tripoint &view_center,
+                       bool low_light, bool bright_light, bool inorder ) const;
+    /**
+     * Draws the tile as seen from above.
+     */
+    void draw_from_above( WINDOW* w, player &u, const tripoint &p,
+                          const maptile &tile, bool invert,
+                          const tripoint &view_center,
+                          bool low_light, bool bright_light, bool inorder ) const;
 
  long determine_wall_corner( const tripoint &p ) const;
  void cache_seen(const int fx, const int fy, const int tx, const int ty, const int max_range);
  // apply a circular light pattern immediately, however it's best to use...
- void apply_light_source(int x, int y, float luminance);
+ void apply_light_source( const tripoint &p, float luminance);
  // ...this, which will apply the light after at the end of generate_lightmap, and prevent redundant
  // light rays from causing massive slowdowns, if there's a huge amount of light.
- void add_light_source(int x, int y, float luminance);
+ void add_light_source( const tripoint &p, float luminance);
  // Handle just cardinal directions and 45 deg angles.
- void apply_directional_light( int x, int y, int direction, float luminance );
- void apply_light_arc(int x, int y, int angle, float luminance, int wideangle = 30 );
+ void apply_directional_light( const tripoint &p, int direction, float luminance );
+ void apply_light_arc( const tripoint &p, int angle, float luminance, int wideangle = 30 );
  void apply_light_ray(bool lit[MAPSIZE*SEEX][MAPSIZE*SEEY],
-                      int sx, int sy, int ex, int ey, float luminance);
- void add_light_from_items( const int x, const int y, std::list<item>::iterator begin,
+                      const tripoint &s, const tripoint &e, float luminance);
+ void add_light_from_items( const tripoint &p, std::list<item>::iterator begin,
                             std::list<item>::iterator end );
- void calc_ray_end(int angle, int range, int x, int y, int* outx, int* outy) const;
+ void calc_ray_end(int angle, int range, const tripoint &p, tripoint &out ) const;
  vehicle *add_vehicle_to_map(vehicle *veh, bool merge_wrecks);
 
-    // Bashes terrain or furniture, handles collapse and roofs
-    std::pair<bool, bool> bash_ter_furn( const tripoint &p, const int str,
-                                         bool silent, bool destroy, bool bash_floor,
-                                         float res_roll );
+    // Internal methods used to bash just the selected features
+    // Information on what to bash/what was bashed is read from/written to the bash_params struct
+    void bash_ter_furn( const tripoint &p, bash_params &params );
+    void bash_items( const tripoint &p, bash_params &params );
+    void bash_vehicle( const tripoint &p, bash_params &params );
+    void bash_field( const tripoint &p, bash_params &params );
+
     // Gets the roof type of the tile at p
     // Second argument refers to whether we have to get a roof (we're over an unpassable tile)
     // or can just return air because we bashed down an entire floor tile

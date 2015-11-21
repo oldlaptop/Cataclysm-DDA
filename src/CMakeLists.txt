@@ -25,7 +25,7 @@ SET(CATACLYSM_DDA_SOURCES
     ${CMAKE_SOURCE_DIR}/src/catacharset.cpp
     ${CMAKE_SOURCE_DIR}/src/item_factory.cpp
     ${CMAKE_SOURCE_DIR}/src/activity_handlers.cpp
-    ${CMAKE_SOURCE_DIR}/src/mongroupdef.cpp
+    ${CMAKE_SOURCE_DIR}/src/mongroup.cpp
     ${CMAKE_SOURCE_DIR}/src/mapgen_functions.cpp
     ${CMAKE_SOURCE_DIR}/src/savegame_json.cpp
     ${CMAKE_SOURCE_DIR}/src/item_action.cpp
@@ -92,7 +92,7 @@ SET(CATACLYSM_DDA_SOURCES
     ${CMAKE_SOURCE_DIR}/src/vehicle_group.cpp
     ${CMAKE_SOURCE_DIR}/src/mission_place.cpp
     ${CMAKE_SOURCE_DIR}/src/material.cpp
-    ${CMAKE_SOURCE_DIR}/src/veh_typedef.cpp
+    ${CMAKE_SOURCE_DIR}/src/veh_type.cpp
     ${CMAKE_SOURCE_DIR}/src/melee.cpp
     ${CMAKE_SOURCE_DIR}/src/defense.cpp
     ${CMAKE_SOURCE_DIR}/src/npc.cpp
@@ -114,7 +114,7 @@ SET(CATACLYSM_DDA_SOURCES
     ${CMAKE_SOURCE_DIR}/src/active_item_cache.cpp
     ${CMAKE_SOURCE_DIR}/src/addiction.cpp
     ${CMAKE_SOURCE_DIR}/src/computer.cpp
-    ${CMAKE_SOURCE_DIR}/src/trapdef.cpp
+    ${CMAKE_SOURCE_DIR}/src/trap.cpp
     ${CMAKE_SOURCE_DIR}/src/game.cpp
     ${CMAKE_SOURCE_DIR}/src/monattack.cpp
     ${CMAKE_SOURCE_DIR}/src/effect.cpp
@@ -248,6 +248,7 @@ SET (CATACLYSM_DDA_HEADERS
     ${CMAKE_SOURCE_DIR}/src/martialarts.h
     ${CMAKE_SOURCE_DIR}/src/iexamine.h
     ${CMAKE_SOURCE_DIR}/src/iuse_software_sokoban.h
+    ${CMAKE_SOURCE_DIR}/src/iuse_software_minesweeper.h
     ${CMAKE_SOURCE_DIR}/src/options.h
     ${CMAKE_SOURCE_DIR}/src/get_version.h
     ${CMAKE_SOURCE_DIR}/src/mapsharing.h
@@ -371,7 +372,7 @@ IF(TILES)
 
 	IF (NOT DYNAMIC_LINKING)
 		# SDL, SDL_Image, SDL_ttf deps are required for static build
-		target_include_directories(cataclysm-tiles PUBLIC 
+		target_include_directories(cataclysm-tiles PUBLIC
 			${FREETYPE_INCLUDE_DIRS}
 			${PNG_INCLUDE_DIRS}
 			${JPEG_INCLUDE_DIR}
@@ -400,19 +401,19 @@ IF(TILES)
 
 	IF(SOUND)
 		set_target_properties(cataclysm-tiles PROPERTIES COMPILE_DEFINITIONS
-			"SDLTILES;TILES;SDL_SOUND" )
+			"TILES;SDL_SOUND" )
 
 		target_include_directories(cataclysm-tiles PUBLIC ${OGGVORBIS_INCLUDE_DIR})
 		target_link_libraries(cataclysm-tiles ${OGG_LIBRARY})
 		target_link_libraries(cataclysm-tiles ${VORBIS_LIBRARY})
 		target_link_libraries(cataclysm-tiles ${VORBISFILE_LIBRARY})
-	
+
 		target_include_directories(cataclysm-tiles PUBLIC ${SDL2_MIXER_INCLUDE_DIRS})
 		target_link_libraries(cataclysm-tiles ${SDL2_MIXER_LIBRARIES})
 	ELSE(SOUND)
 		# Set additional build props
 		set_target_properties(cataclysm-tiles PROPERTIES COMPILE_DEFINITIONS
-			"SDLTILES;TILES" )
+			"TILES" )
 	ENDIF(SOUND)
 
 	IF(WIN32)
@@ -433,7 +434,7 @@ ENDIF(TILES)
 # Build curses version if requested
 IF(CURSES)
 	IF(WIN32)
-		ADD_EXECUTABLE(cataclysm WIN32
+		ADD_EXECUTABLE(cataclysm
 			${CATACLYSM_DDA_SOURCES}
 			${CATACLYSM_DDA_HEADERS}
 			${CATACLYSM_DDA_SRCS}
@@ -468,7 +469,7 @@ IF(CURSES)
 		)
 	ENDIF (LOCALIZE)
 
-	target_include_directories(cataclysm PUBLIC ${CURSES_INCLUDE_PATH})
+	target_include_directories(cataclysm PUBLIC ${CURSES_INCLUDE_DIR})
 	target_link_libraries(cataclysm ${CURSES_LIBRARIES})
 
 	IF(CMAKE_USE_PTHREADS_INIT)

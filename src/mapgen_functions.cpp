@@ -17,6 +17,23 @@
 #include "mapdata.h"
 #include "field.h"
 
+const mtype_id mon_ant_larva( "mon_ant_larva" );
+const mtype_id mon_ant_queen( "mon_ant_queen" );
+const mtype_id mon_bat( "mon_bat" );
+const mtype_id mon_bee( "mon_bee" );
+const mtype_id mon_beekeeper( "mon_beekeeper" );
+const mtype_id mon_fungaloid_queen( "mon_fungaloid_queen" );
+const mtype_id mon_fungaloid_seeder( "mon_fungaloid_seeder" );
+const mtype_id mon_fungaloid_tower( "mon_fungaloid_tower" );
+const mtype_id mon_jabberwock( "mon_jabberwock" );
+const mtype_id mon_rat_king( "mon_rat_king" );
+const mtype_id mon_sewer_rat( "mon_sewer_rat" );
+const mtype_id mon_shia( "mon_shia" );
+const mtype_id mon_spider_web( "mon_spider_web" );
+const mtype_id mon_spider_widow_giant( "mon_spider_widow_giant" );
+const mtype_id mon_wasp( "mon_wasp" );
+const mtype_id mon_zombie_jackson( "mon_zombie_jackson" );
+
 mapgendata::mapgendata(oter_id north, oter_id east, oter_id south, oter_id west, oter_id northeast,
                        oter_id northwest, oter_id southeast, oter_id southwest, oter_id up, int z, const regional_settings * rsettings, map * mp) :
     default_groundcover(t_null,1,t_null)
@@ -461,19 +478,13 @@ void mapgen_dirtlot(map *m, oter_id, mapgendata, int, float)
     }
     int num_v = rng(0,1) * rng(0,2); // (0, 0, 0, 0, 1, 2) vehicles
     for(int v = 0; v < num_v; v++) {
-        int vy = rng(0, 16) + 4;
-        int vx = rng(0, 16) + 4;
+        const tripoint vp( rng(0, 16) + 4, rng(0, 16) + 4, m->get_abs_sub().z );
         int theta = rng(0,3)*180 + one_in(3)*rng(0,89);
-        vproto_id veh_type;
-        if (one_in(4)) {
-            veh_type = vproto_id( "quad_bike" );
-        } else {
-            veh_type = vproto_id( "pickup" );
+        if( !m->veh_at( vp ) ) {
+            m->add_vehicle( vgroup_id("dirtlot"), vp, theta, -1, -1 );
         }
-        if (!m->veh_at(vx,vy)) {
-            m->add_vehicle (veh_type, vx, vy, theta, -1, -1);
-        }
-    }}
+    }
+}
 // todo: more region_settings for forest biome
 void mapgen_forest_general(map *m, oter_id terrain_type, mapgendata dat, int turn, float)
 {
@@ -515,7 +526,7 @@ void mapgen_forest_general(map *m, oter_id terrain_type, mapgendata dat, int tur
             }
             int rn = rng(0, forest_chance);
             if ((forest_chance > 0 && rn > 13) || one_in(100 - forest_chance)) {
-                std::array<std::pair<int, ter_id>, 10> tree_chances = {{
+                std::array<std::pair<int, ter_id>, 15> tree_chances = {{
                         // todo: JSONize this array!
                         // Ensure that these one_in chances
                         // (besides the last) don't add up to more than 1 in 1
@@ -526,7 +537,12 @@ void mapgen_forest_general(map *m, oter_id terrain_type, mapgendata dat, int tur
                         { 350, t_tree_apricot },
                         { 350, t_tree_peach },
                         { 350, t_tree_plum },
+                        { 256, t_tree_birch },
+                        { 256, t_tree_willow },
+                        { 256, t_tree_maple },
                         { 128, t_tree_deadpine },
+                        { 128, t_tree_hickory_dead },
+                        { 32, t_tree_hickory },
                         { 16, t_tree_pine },
                         { 16, t_tree_blackjack },
                         { 1, t_tree },
@@ -663,12 +679,12 @@ void mapgen_forest_general(map *m, oter_id terrain_type, mapgendata dat, int tur
 
     //1-2 per overmap, very bad day for low level characters
     if (one_in(10000)) {
-        m->add_spawn("mon_jabberwock", 1, SEEX, SEEY); // fixme add to monster_group?
+        m->add_spawn(mon_jabberwock, 1, SEEX, SEEY); // fixme add to monster_group?
     }
 
     //Very rare easter egg, ~1 per 10 overmaps
     if (one_in(1000000)) {
-        m->add_spawn("mon_shia", 1, SEEX, SEEY);
+        m->add_spawn(mon_shia, 1, SEEX, SEEY);
     }
 
 
@@ -685,7 +701,7 @@ void mapgen_forest_general(map *m, oter_id terrain_type, mapgendata dat, int tur
         m->ter_set( 12, 12, t_dirt );
         m->furn_set(12, 12, f_egg_sackws);
         m->remove_field({12, 12, m->get_abs_sub().z}, fd_web);
-        m->add_spawn("mon_spider_web", rng(1, 2), SEEX, SEEY);
+        m->add_spawn(mon_spider_web, rng(1, 2), SEEX, SEEY);
     }
 }
 
@@ -719,8 +735,8 @@ void mapgen_hive(map *m, oter_id, mapgendata dat, int turn, float)
                         m->ter_set(i + k, j + l, t_floor_wax);
                     }
                 }
-                m->add_spawn("mon_bee", 2, i, j);
-                m->add_spawn("mon_beekeeper", 1, i, j);
+                m->add_spawn(mon_bee, 2, i, j);
+                m->add_spawn(mon_beekeeper, 1, i, j);
                 m->ter_set(i    , j - 3, t_floor_wax);
                 m->ter_set(i    , j + 3, t_floor_wax);
                 m->ter_set(i - 1, j - 2, t_floor_wax);
@@ -908,7 +924,7 @@ void mapgen_fungal_bloom(map *m, oter_id, mapgendata dat, int, float)
         }
     }
     square(m, t_fungus, SEEX - 2, SEEY - 2, SEEX + 2, SEEY + 2);
-    m->add_spawn("mon_fungaloid_queen", 1, 12, 12);
+    m->add_spawn(mon_fungaloid_queen, 1, 12, 12);
 }
 
 void mapgen_fungal_tower(map *m, oter_id, mapgendata dat, int, float)
@@ -931,7 +947,7 @@ void mapgen_fungal_tower(map *m, oter_id, mapgendata dat, int, float)
         }
     }
     square(m, t_fungus, SEEX - 2, SEEY - 2, SEEX + 2, SEEY + 2);
-    m->add_spawn("mon_fungaloid_tower", 1, 12, 12);
+    m->add_spawn(mon_fungaloid_tower, 1, 12, 12);
 }
 
 void mapgen_fungal_flowers(map *m, oter_id, mapgendata dat, int, float)
@@ -960,7 +976,7 @@ void mapgen_fungal_flowers(map *m, oter_id, mapgendata dat, int, float)
         }
     }
     square(m, t_fungus, SEEX - 2, SEEY - 2, SEEX + 2, SEEY + 2);
-    m->add_spawn("mon_fungaloid_seeder", 1, 12, 12);
+    m->add_spawn(mon_fungaloid_seeder, 1, 12, 12);
 }
 
 void mapgen_road_straight(map *m, oter_id terrain_type, mapgendata dat, int turn, float density)
@@ -998,7 +1014,7 @@ void mapgen_road_straight(map *m, oter_id terrain_type, mapgendata dat, int turn
         m->place_spawns( mongroup_id( "GROUP_ZOMBIE" ), 2, 0, 0, SEEX * 2 - 1, SEEX * 2 - 1, density);
         // 1 per 10 overmaps
         if (one_in(10000)) {
-            m->add_spawn("mon_zombie_jackson", 1, SEEX, SEEY);
+            m->add_spawn(mon_zombie_jackson, 1, SEEX, SEEY);
         }
     }
     m->place_items("road", 5, 0, 0, SEEX * 2 - 1, SEEX * 2 - 1, false, turn);
@@ -1098,7 +1114,7 @@ ssss.......yy.......ssss\n",
         m->place_spawns( mongroup_id( "GROUP_ZOMBIE" ), 2, 0, 0, SEEX * 2 - 1, SEEX * 2 - 1, density);
         // 1 per 10 overmaps
         if (one_in(10000)) {
-            m->add_spawn("mon_zombie_jackson", 1, SEEX, SEEY);
+            m->add_spawn(mon_zombie_jackson, 1, SEEX, SEEY);
         }
     }
     m->place_items("road", 5, 0, 0, SEEX * 2 - 1, SEEX * 2 - 1, false, turn);
@@ -1203,7 +1219,7 @@ ssss....................\n\
         m->place_spawns( mongroup_id( "GROUP_ZOMBIE" ), 2, 0, 0, SEEX * 2 - 1, SEEX * 2 - 1, density);
         // 1 per 10 overmaps
         if (one_in(10000)) {
-            m->add_spawn("mon_zombie_jackson", 1, SEEX, SEEY);
+            m->add_spawn(mon_zombie_jackson, 1, SEEX, SEEY);
         }
     }
     m->place_items("road", 5, 0, 0, SEEX * 2 - 1, SEEX * 2 - 1, false, turn);
@@ -1251,7 +1267,7 @@ void mapgen_road_tee(map *m, oter_id terrain_type, mapgendata dat, int turn, flo
         m->place_spawns( mongroup_id( "GROUP_ZOMBIE" ), 2, 0, 0, SEEX * 2 - 1, SEEX * 2 - 1, density);
         // 1 per 10 overmaps
         if (one_in(10000)) {
-            m->add_spawn("mon_zombie_jackson", 1, SEEX, SEEY);
+            m->add_spawn(mon_zombie_jackson, 1, SEEX, SEEY);
         }
     }
     m->place_items("road", 5, 0, 0, SEEX * 2 - 1, SEEX * 2 - 1, false, turn);
@@ -1333,7 +1349,7 @@ t   t\n\
         m->place_spawns( mongroup_id( "GROUP_ZOMBIE" ), 2, 0, 0, SEEX * 2 - 1, SEEX * 2 - 1, density);
         // 1 per 10 overmaps
         if (one_in(10000)) {
-            m->add_spawn("mon_zombie_jackson", 1, SEEX, SEEY);
+            m->add_spawn(mon_zombie_jackson, 1, SEEX, SEEY);
         }
     }
     if (terrain_type == "road_nesw_manhole") {
@@ -1614,23 +1630,9 @@ void mapgen_bridge(map *m, oter_id terrain_type, mapgendata dat, int turn, float
             }
         }
     }
+
     // spawn regular road out of fuel vehicles
-    if (one_in(2)) {
-        int vx = rng (10, 12);
-        int vy = rng (10, 12);
-        int rc = rng(1, 10);
-        if (rc <= 3) {
-            m->add_vehicle( vproto_id( "car" ), vx, vy, one_in(2)? 90 : 180, 0, -1);
-        } else if (rc <= 6) {
-            m->add_vehicle( vproto_id( "pickup" ), vx, vy, one_in(2)? 90 : 180, 0, -1);
-        } else if (rc <= 8) {
-            m->add_vehicle( vproto_id( "flatbed_truck" ), vx, vy, one_in(2)? 90 : 180, 0, -1);
-        } else if (rc <= 9) {
-            m->add_vehicle( vproto_id( "semi_truck" ), vx, vy, one_in(2)? 90 : 180, 0, -1);
-        } else {
-            m->add_vehicle( vproto_id( "armored_car" ), vx, vy, one_in(2)? 90 : 180, 0, -1);
-        }
-    }
+    VehicleSpawn::apply(vspawn_id("default_bridge"), *m, "bridge");
 
     if (terrain_type == "bridge_ew") {
         m->rotate(1);
@@ -1655,28 +1657,14 @@ void mapgen_highway(map *m, oter_id terrain_type, mapgendata dat, int turn, floa
             }
         }
     }
+
+    // spawn regular road out of fuel vehicles
+    VehicleSpawn::apply(vspawn_id("default_highway"), *m, "highway");
+
     if (terrain_type == "hiway_ew") {
         m->rotate(1);
     }
     m->place_items("road", 8, 0, 0, SEEX * 2 - 1, SEEX * 2 - 1, false, turn);
-
-    // spawn regular road out of fuel vehicles
-    if (one_in(2)) {
-        int vx = rng (10, 12);
-        int vy = rng (10, 12);
-        int rc = rng(1, 10);
-        if (rc <= 3) {
-            m->add_vehicle( vproto_id( "car" ), vx, vy, one_in(2)? 90 : 180, 0, -1);
-        } else if (rc <= 6) {
-            m->add_vehicle( vproto_id( "pickup" ), vx, vy, one_in(2)? 90 : 180, 0, -1);
-        } else if (rc <= 8) {
-            m->add_vehicle( vproto_id( "flatbed_truck" ), vx, vy, one_in(2)? 90 : 180, 0, -1);
-        } else if (rc <= 9) {
-            m->add_vehicle( vproto_id( "semi_truck" ), vx, vy, one_in(2)? 90 : 180, 0, -1);
-        } else {
-            m->add_vehicle( vproto_id( "armored_car" ), vx, vy, one_in(2)? 90 : 180, 0, -1);
-        }
-    }
 }
 
 void mapgen_river_center(map *m, oter_id, mapgendata dat, int, float)
@@ -1783,80 +1771,8 @@ void mapgen_parking_lot(map *m, oter_id, mapgendata dat, int turn, float)
                 m->ter_set(i, j, dat.groundcover());
         }
     }
-    for(int v = 0; v < rng(1,4); v++) {
-        int vy = rng(0, 4) * 4 + rng(2,4);
-        int vx = rng(0, 1) * 15 + rng(4,5);
-        vproto_id veh_type;
-        int roll = rng(1, 100);
-        if (roll <= 10) { //specials
-            int ra = rng(1, 100);
-            if (ra <= 3) {
-                veh_type = vproto_id( "military_cargo_truck" );
-            } else if (ra <= 10) {
-                veh_type = vproto_id( "bubble_car" );
-            } else if (ra <= 15) {
-                veh_type = vproto_id( "rv" );
-            } else if (ra <= 20) {
-                veh_type = vproto_id( "schoolbus" );
-            } else if (ra <= 40) {
-                veh_type = vproto_id( "fire_truck" );
-            }else if (ra <= 60) {
-                veh_type = vproto_id( "policecar" );
-            }else if (ra <=90) {
-                veh_type = vproto_id( "car_sports_electric" );
-            }else {
-                veh_type = vproto_id( "quad_bike" );
-            }
-        } else if (roll <= 25) { //commercial
-            int rb = rng(1, 100);
-            if (rb <= 25) {
-                veh_type = vproto_id( "truck_trailer" );
-            } else if (rb <= 35) {
-                veh_type = vproto_id( "semi_truck" );
-            } else if (rb <= 50) {
-                veh_type = vproto_id( "cube_van" );
-            } else {
-                veh_type = vproto_id( "flatbed_truck" );
-            }
-        } else if (roll < 90) { //commons
-            int rc = rng(1, 100);
-            if (rc <= 4) {
-                veh_type = vproto_id( "golf_cart" );
-            } else if (rc <= 11) {
-                veh_type = vproto_id( "scooter" );
-            } else if (rc <= 21) {
-                int rd = rng(1, 100);
-                if(rd <= 50) {
-                    veh_type = vproto_id( "car_mini" );
-                } else {
-                    veh_type = vproto_id( "beetle" );
-                }
-            } else if (rc <= 50) {
-                veh_type = vproto_id( "car" );
-            } else if (rc <= 60) {
-                veh_type = vproto_id( "electric_car" );
-            } else if (rc <= 65) {
-                veh_type = vproto_id( "hippie_van" );
-            } else if (rc <= 73) {
-                veh_type = vproto_id( "bicycle" );
-            } else if (rc <= 75) {
-                veh_type = vproto_id( "rara_x" ); //The Solar Car Toyota RaRa X
-            } else if (rc <= 77) {
-                veh_type = vproto_id( "unicycle" );
-            } else if (rc <= 82) {
-                veh_type = vproto_id( "bicycle_electric" );
-            } else if (rc <= 90) {
-                veh_type = vproto_id( "motorcycle" );
-            } else {
-                veh_type = vproto_id( "motorcycle_sidecart" );
-            }
-        } else {
-            veh_type = vproto_id( "shopping_cart" );
-        }
-        if (!m->veh_at(vx,vy)) {
-            m->add_vehicle (veh_type, vx, vy, (one_in(2)?0:180) + (one_in(10)*rng(0,179)), -1, -1);
-        }
-    }
+
+    VehicleSpawn::apply(vspawn_id("default_parkinglot"), *m, "parkinglot");
 
     m->place_items("road", 8, 0, 0, SEEX * 2 - 1, SEEY * 2 - 1, false, turn);
     for (int i = 1; i < 4; i++) {
@@ -2728,7 +2644,7 @@ void mapgen_generic_house(map *m, oter_id terrain_type, mapgendata dat, int turn
                     }
                 }
             }
-            m->add_spawn("mon_wasp", 1, podx, pody);
+            m->add_spawn(mon_wasp, 1, podx, pody);
         }
         m->place_items("rare", 70, 0, 0, SEEX * 2 - 1, SEEY * 2 - 1, false, turn);
 
@@ -2737,7 +2653,7 @@ void mapgen_generic_house(map *m, oter_id terrain_type, mapgendata dat, int turn
             for (int j = 0; j < SEEY * 2; j++) {
                 if (m->ter(i, j) == t_floor) {
                     if (one_in(15)) {
-                        m->add_spawn("mon_spider_widow_giant", rng(1, 2), i, j);
+                        m->add_spawn(mon_spider_widow_giant, rng(1, 2), i, j);
                         for (int x = i - 1; x <= i + 1; x++) {
                             for (int y = j - 1; y <= j + 1; y++) {
                                 if (m->ter(x, y) == t_floor) {
@@ -3578,7 +3494,7 @@ void mapgen_basement_spiders(map *m, oter_id terrain_type, mapgendata dat, int t
                 }
                 if( one_in( 30 ) && m->move_cost( i, j ) > 0 ) {
                     m->furn_set(i, j, f_egg_sackbw);
-                    m->add_spawn("mon_spider_widow_giant", rng(3, 6), i, j); //hope you like'em spiders
+                    m->add_spawn(mon_spider_widow_giant, rng(3, 6), i, j); //hope you like'em spiders
                     m->remove_field({i, j, m->get_abs_sub().z}, fd_web);
                 }
             }
@@ -3880,27 +3796,10 @@ void mapgen_s_garage(map *m, oter_id terrain_type, mapgendata dat, int, float)
         // place vehicles, if any
         for (int v=0; v<=1; v++) {
             if (one_in(4)) {
-                vproto_id vt;
-                int vehicle_type = rng(1, 8);
-                if(vehicle_type <= 3) {
-                    vt = one_in(2) ? vproto_id( "car" ) : vproto_id( "car_chassis" );
-                } else if(vehicle_type <= 5) {
-                    vt = one_in(2) ? vproto_id( "quad_bike" ) : vproto_id( "quad_bike_chassis" );
-                } else if(vehicle_type <= 7) {
-                    vt = one_in(2) ? vproto_id( "motorcycle" ) : vproto_id( "motorcycle_chassis" );
-                } else {
-                    vt = vproto_id( "welding_cart" );
-                }
-                m->add_vehicle(vt, vx + v * tdx, vy + v * tdy, theta + one_in(3)*rng(-1,1)*30, -1, -1);
+                m->add_vehicle(vgroup_id("garage"), {vx + v * tdx, vy + v * tdy}, theta + one_in(3)*rng(-1,1)*30, -1, -1);
             }
         }
-
-
-
 }
-
-
-
 
 void mapgen_farm(map *m, oter_id terrain_type, mapgendata dat, int turn, float density)
 {
@@ -5092,7 +4991,7 @@ void mapgen_cave(map *m, oter_id, mapgendata dat, int turn, float density)
             case 3:
                 // bat corpses
                 for (int i = rng(1, 12); i > 0; i--) {
-                    body.make_corpse( "mon_bat", calendar::turn );
+                    body.make_corpse( mon_bat, calendar::turn );
                     m->add_item_or_charges(rng(1, SEEX * 2 - 1), rng(1, SEEY * 2 - 1), body);
                 }
                 break;
@@ -5173,11 +5072,11 @@ void mapgen_cave_rat(map *m, oter_id, mapgendata dat, int, float)
             for (int i = SEEX - 4; i <= SEEX + 4; i++) {
                 for (int j = SEEY - 4; j <= SEEY + 4; j++) {
                     if ((i <= SEEX - 2 || i >= SEEX + 2) && (j <= SEEY - 2 || j >= SEEY + 2)) {
-                        m->add_spawn("mon_sewer_rat", 1, i, j);
+                        m->add_spawn(mon_sewer_rat, 1, i, j);
                     }
                 }
             }
-            m->add_spawn("mon_rat_king", 1, SEEX, SEEY);
+            m->add_spawn(mon_rat_king, 1, SEEX, SEEY);
             m->place_items("rare", 75, SEEX - 4, SEEY - 4, SEEX + 4, SEEY + 4, true, 0);
         } else { // Level 1
             int cavex = SEEX, cavey = SEEY * 2 - 3;
@@ -5193,7 +5092,7 @@ void mapgen_cave_rat(map *m, oter_id, mapgendata dat, int, float)
                             madd_field( m, cx, cy, fd_blood, rng(1, 3));
                         }
                         if (one_in(20)) {
-                            m->add_spawn("mon_sewer_rat", 1, cx, cy);
+                            m->add_spawn(mon_sewer_rat, 1, cx, cy);
                         }
                     }
                 }
@@ -5213,7 +5112,7 @@ void mapgen_cave_rat(map *m, oter_id, mapgendata dat, int, float)
                                 madd_field( m, cx, cy, fd_blood, rng(1, 3));
                             }
                             if (one_in(20)) {
-                                m->add_spawn("mon_sewer_rat", 1, cx, cy);
+                                m->add_spawn(mon_sewer_rat, 1, cx, cy);
                             }
                         }
                     }
@@ -5819,9 +5718,9 @@ void mapgen_ants_generic(map *m, oter_id terrain_type, mapgendata dat, int, floa
         m->place_items("ant_egg",  98, 0, 0, SEEX * 2 - 1, SEEY * 2 - 1, true, 0);
     }
     if (terrain_type == "ants_queen") {
-        m->add_spawn("mon_ant_queen", 1, SEEX, SEEY);
+        m->add_spawn(mon_ant_queen, 1, SEEX, SEEY);
     } else if (terrain_type == "ants_larvae") {
-        m->add_spawn("mon_ant_larva", 10, SEEX, SEEY);
+        m->add_spawn(mon_ant_larva, 10, SEEX, SEEY);
     }
 
 
@@ -5839,7 +5738,7 @@ void mapgen_ants_larvae(map *m, oter_id terrain_type, mapgendata dat, int turn, 
 {
     mapgen_ants_generic(m, terrain_type, dat, turn, density);
     m->place_items("ant_egg",  98, 0, 0, SEEX * 2 - 1, SEEY * 2 - 1, true, 0);
-    m->add_spawn("mon_ant_larva", 10, SEEX, SEEY);
+    m->add_spawn(mon_ant_larva, 10, SEEX, SEEY);
 }
 
 
@@ -5847,7 +5746,7 @@ void mapgen_ants_queen(map *m, oter_id terrain_type, mapgendata dat, int turn, f
 {
     mapgen_ants_generic(m, terrain_type, dat, turn, density);
     m->place_items("ant_egg",  98, 0, 0, SEEX * 2 - 1, SEEY * 2 - 1, true, 0);
-    m->add_spawn("mon_ant_queen", 1, SEEX, SEEY);
+    m->add_spawn(mon_ant_queen, 1, SEEX, SEEY);
 
 }
 

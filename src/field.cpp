@@ -15,6 +15,8 @@
 #include "mapdata.h"
 #include "mtype.h"
 
+const species_id FUNGUS( "FUNGUS" );
+
 #define INBOUNDS(x, y) \
  (x >= 0 && x < SEEX * my_MAPSIZE && y >= 0 && y < SEEY * my_MAPSIZE)
 
@@ -74,7 +76,7 @@ void game::init_fields()
         {
             "fd_acid",
             {_("acid splatter"), _("acid streak"), _("pool of acid")}, '5', 2,
-            {c_ltgreen, c_green, c_green}, {true, true, true}, {true, true, true}, MINUTES(1),
+            {c_ltgreen, c_green, c_green}, {true, true, true}, {true, true, true}, MINUTES(2),
             {0,0,0}
         },
 
@@ -666,39 +668,9 @@ bool map::process_fields_in_submap( submap *const current_submap,
 
                     case fd_acid:
                     {
-                        std::vector<item> contents;
                         const auto &ter = map_tile.get_ter_t();
-                        const auto &frn = map_tile.get_furn_t();
                         if( ter.has_flag( TFLAG_SWIMMABLE ) ) { // Dissipate faster in water
                             cur->setFieldAge( cur->getFieldAge() + 20 );
-                        }
-                        if( ter_furn_has_flag( ter, frn, TFLAG_SEALED ) &&
-                            !ter_furn_has_flag( ter, frn, TFLAG_ALLOW_FIELD_EFFECT ) ) {
-                            break;
-                        }
-                        auto items = i_at( p );
-                        for( auto melting = items.begin(); melting != items.end(); ) {
-                            // see DEVELOPER_FAQ.txt for how acid resistance is calculated
-                            int chance = melting->acid_resist();
-                            if (chance == 0) {
-                                melting->damage++;
-                            } else if (chance > 0 && chance <= 9) {
-                                if (one_in(chance)) {
-                                    melting->damage++;
-                                }
-                            }
-                            if (melting->damage >= 5) {
-                                //Destroy the object, age the field.
-                                cur->setFieldAge(cur->getFieldAge() + melting->volume());
-                                contents.insert( contents.begin(),
-                                                 melting->contents.begin(), melting->contents.end() );
-                                melting = items.erase( melting );
-                            } else {
-                                melting++;
-                            }
-                        }
-                        for( auto &c : contents ) {
-                            add_item_or_charges( p, c );
                         }
 
                         // Try to fall by a z-level
@@ -779,7 +751,6 @@ bool map::process_fields_in_submap( submap *const current_submap,
                                     // Make a copy and let the copy explode.
                                     item tmp = *explosive;
                                     i_rem( p, explosive );
-                                    // TODO: Z
                                     tmp.detonate( p );
                                     // Just restart from the beginning.
                                     explosive = items_here.begin();
@@ -815,9 +786,11 @@ bool map::process_fields_in_submap( submap *const current_submap,
                                     special = ammo_type->ammo_effects.count("FRAG") ||
                                               ammo_type->ammo_effects.count("NAPALM") ||
                                               ammo_type->ammo_effects.count("NAPALM_BIG") ||
+                                              ammo_type->ammo_effects.count("EXPLOSIVE_SMALL") ||
                                               ammo_type->ammo_effects.count("EXPLOSIVE") ||
                                               ammo_type->ammo_effects.count("EXPLOSIVE_BIG") ||
                                               ammo_type->ammo_effects.count("EXPLOSIVE_HUGE") ||
+                                              ammo_type->ammo_effects.count("TOXICGAS") ||
                                               ammo_type->ammo_effects.count("TEARGAS") ||
                                               ammo_type->ammo_effects.count("SMOKE") ||
                                               ammo_type->ammo_effects.count("SMOKE_BIG") ||
@@ -846,9 +819,7 @@ bool map::process_fields_in_submap( submap *const current_submap,
                                             // large intrinsic effect blows up with half
                                             // the ammos damage in force, for each bullet,
                                             // just creating shrapnel.
-                                            // TODO: Z
-                                            g->explosion( p, ammo_type->damage / 2,
-                                                          true, false, false );
+                                            g->explosion( p, ammo_type->damage / 2, 0.5f, 1 );
                                         } else if( special ) {
                                             // If it has a special effect just trigger it.
                                             ammo_effects( p, ammo_type->ammo_effects );
@@ -1002,7 +973,7 @@ bool map::process_fields_in_submap( submap *const current_submap,
                                 smoke += 2;
                                 if( cur->getFieldDensity() > 1 &&
                                     one_in( 200 - cur->getFieldDensity() * 50 ) ) {
-                                    destroy( p, true );
+                                    destroy( p, false );
                                 }
 
                             } else if( ter_furn_has_flag( ter, frn, TFLAG_FLAMMABLE_HARD ) &&
@@ -1012,7 +983,7 @@ bool map::process_fields_in_submap( submap *const current_submap,
                                 smoke += 2;
                                 if( cur->getFieldDensity() > 1 &&
                                     one_in( 200 - cur->getFieldDensity() * 50 ) ) {
-                                    destroy( p, true );
+                                    destroy( p, false );
                                 }
 
                             } else if( ter_furn_has_flag( ter, frn, TFLAG_FLAMMABLE_ASH ) ) {
@@ -1453,10 +1424,13 @@ bool map::process_fields_in_submap( submap *const current_submap,
 
                     case fd_fatigue:
                     {
-                        std::array<std::string, 9> monids = { { "mon_flying_polyp", "mon_hunting_horror",
-                        "mon_mi_go", "mon_yugg", "mon_gelatin", "mon_flaming_eye", "mon_kreck", "mon_gracke",
-                        "mon_blank" } };
-                        if (cur->getFieldDensity() < 3 && int(calendar::turn) % 3600 == 0 && one_in(10)) {
+                        static const std::array<mtype_id, 9> monids = { {
+                            mtype_id( "mon_flying_polyp" ), mtype_id( "mon_hunting_horror" ),
+                            mtype_id( "mon_mi_go" ), mtype_id( "mon_yugg" ), mtype_id( "mon_gelatin" ),
+                            mtype_id( "mon_flaming_eye" ), mtype_id( "mon_kreck" ), mtype_id( "mon_gracke" ),
+                            mtype_id( "mon_blank" ),
+                        } };
+                        if (cur->getFieldDensity() < 3 && calendar::once_every(HOURS(6)) && one_in(10)) {
                             cur->setFieldDensity(cur->getFieldDensity() + 1);
                         } else if (cur->getFieldDensity() == 3 && one_in(600)) { // Spawn nether creature!
                             g->summon_mon( random_entry( monids ), p);
@@ -1504,7 +1478,7 @@ bool map::process_fields_in_submap( submap *const current_submap,
                                         body_part hit = random_body_part();
                                         p->deal_damage( nullptr, hit, damage_instance( DT_BASH, 6 ) );
                                         if (g->u.sees( newp )) {
-                                            add_msg(_("A %s hits %s!"), tmp.tname().c_str(), p->name.c_str());
+                                            add_msg(_("A %1$s hits %2$s!"), tmp.tname().c_str(), p->name.c_str());
                                         }
                                         p->check_dead_state();
                                     }
@@ -1513,7 +1487,7 @@ bool map::process_fields_in_submap( submap *const current_submap,
                                         monster *mon = &(g->zombie(mondex));
                                         mon->apply_damage( nullptr, bp_torso, 6 - mon->get_armor_bash( bp_torso ) );
                                         if (g->u.sees( newp ))
-                                            add_msg(_("A %s hits the %s!"), tmp.tname().c_str(),
+                                            add_msg(_("A %1$s hits the %2$s!"), tmp.tname().c_str(),
                                                        mon->name().c_str());
                                         mon->check_dead_state();
                                     }
@@ -1775,29 +1749,53 @@ void map::player_in_field( player &u )
         {
             // Assume vehicles block acid damage entirely,
             // you're certainly not standing in it.
-            if( veh != nullptr ) {
+            if( u.in_vehicle ) {
                 break;
             }
 
+            const int density = cur->getFieldDensity();
             int total_damage = 0;
             // Use a helper for a bit less boilerplate
-            const auto burn_part = [&]( body_part bp, int damage ) {
+            const auto burn_part = [&]( body_part bp, const int scale ) {
+                const int corr = u.get_effect_int( "corroding", bp );
                 // Acid resistance itself protects the items,
-                // environmental protection is needed to prevent it from getting inside.
-                const float environmental_resistance = u.get_env_resist( bp ) + 1;
-                const float effective_resistance = 1.0 - (1.0 / environmental_resistance);
-                auto ddi = u.deal_damage( nullptr, bp, damage_instance( DT_ACID, damage, 0, effective_resistance ) );
+                //  environmental protection is needed to prevent it from getting inside.
+                // Also rescale arpen for different body parts - they get damaged less, but aren't
+                //  protected any better.
+                const int arpen = std::max<int>( 0, corr - u.get_env_resist( bp ) + (5 - scale) );
+                const int damage = std::max<int>( density, rng( 1, scale ) );
+                auto ddi = u.deal_damage( nullptr, bp, damage_instance( DT_ACID, damage, arpen ) );
                 total_damage += ddi.total_damage();
+                // Represents acid seeping in rather than being splashed on
+                u.add_env_effect( "corroding", bp, 3, rng( 1, density ), bp, false, 0 );
             };
 
-            const int density = cur->getFieldDensity();
-            burn_part( bp_foot_l, rng( density + 1, density * 3 ) );
-            burn_part( bp_foot_r, rng( density + 1, density * 3 ) );
-            burn_part( bp_leg_l, rng( density, density * 2 ) );
-            burn_part( bp_leg_r, rng( density, density * 2 ) );
+            const bool on_ground = u.is_on_ground();
+            burn_part( bp_foot_l, 5 );
+            burn_part( bp_foot_r, 5 );
+            burn_part( bp_leg_l,  4 );
+            burn_part( bp_leg_r,  4 );
+            if( on_ground ) {
+                // Before, it would just break the legs and leave the survivor alone
+                burn_part( bp_hand_l, 3 );
+                burn_part( bp_hand_r, 3 );
+                burn_part( bp_torso,  3 );
+                // Less arms = less ability to keep upright
+                if( ( u.has_two_arms() && one_in( 4 ) ) || one_in( 2 ) ) {
+                    burn_part( bp_arm_l, 2 );
+                    burn_part( bp_arm_r, 2 );
+                    burn_part( bp_head,  2 );
+                }
+            }
 
-            if( total_damage > 0 ) {
-                u.add_msg_player_or_npc(m_bad, _("The acid burns your legs and feet!"), _("The acid burns <npcname>s legs and feet!"));
+            if( on_ground && total_damage > 0 ) {
+                u.add_msg_player_or_npc( m_bad, _("The acid burns your body!"),
+                                                _("The acid burns <npcname>s body!") );
+            } else if( total_damage > 0 ) {
+                u.add_msg_player_or_npc( m_bad, _("The acid burns your legs and feet!"),
+                                                _("The acid burns <npcname>s legs and feet!") );
+            } else if( on_ground ) {
+                u.add_msg_if_player( m_warning, _("You're lying in a pool of acid") );
             } else {
                 u.add_msg_if_player( m_warning, _("You're standing in a pool of acid") );
             }
@@ -1997,19 +1995,23 @@ void map::player_in_field( player &u )
             break;
 
         case fd_electricity:
-            if ( u.is_elec_immune() ) {
-                u.add_msg_player_or_npc( _("The electric cloud doesn't affect you."),
-                                         _("The electric cloud doesn't seem to affect <npcname>.") );
-            } else {
-                u.add_msg_player_or_npc(m_bad, _("You're electrocuted!"), _("<npcname> is electrocuted!"));
-                //small universal damage based on density.
-                u.hurtall(rng(1, cur->getFieldDensity()), nullptr);
-                if (one_in(8 - cur->getFieldDensity()) && !one_in(30 - u.str_cur)) {
-                    //str of 30 stops this from happening.
-                    u.add_msg_player_or_npc(m_bad, _("You're paralyzed!"), _("<npcname> is paralyzed!"));
-                    u.moves -= rng(cur->getFieldDensity() * 150, cur->getFieldDensity() * 200);
-                }
+        {
+            // Small universal damage based on density.
+            int total_damage = 0;
+            for( size_t i = 0; i < num_hp_parts; i++ ) {
+                const body_part bp = player::hp_to_bp( static_cast<hp_part>( i ) );
+                const int dmg = rng( 1, cur->getFieldDensity() );
+                total_damage += u.deal_damage( nullptr, bp, damage_instance( DT_ELECTRIC, dmg ) ).total_damage();
             }
+
+            if( total_damage > 0 ) {
+                u.add_msg_player_or_npc(m_bad, _("You're electrocuted!"), _("<npcname> is electrocuted!"));
+            } else {
+                u.add_msg_player_or_npc( _("The electric cloud doesn't affect you."),
+                                     _("The electric cloud doesn't seem to affect <npcname>.") );
+            }
+        }
+
             break;
 
         case fd_fatigue:
@@ -2170,13 +2172,8 @@ void map::monster_in_field( monster &z )
 
         case fd_acid:
             if( !z.has_flag( MF_FLIES ) ) {
-                if (cur->getFieldDensity() == 3) {
-                    const int d = rng( 4, 10 ) + rng( 2, 8 );
-                    z.deal_damage( nullptr, bp_torso, damage_instance( DT_ACID, d ) );
-                } else {
-                    const int d = rng( cur->getFieldDensity(), cur->getFieldDensity() * 4 );
-                    z.deal_damage( nullptr, bp_torso, damage_instance( DT_ACID, d ) );
-                }
+                const int d = rng( cur->getFieldDensity(), cur->getFieldDensity() * 3 );
+                z.deal_damage( nullptr, bp_torso, damage_instance( DT_ACID, d ) );
                 z.check_dead_state();
             }
             break;
@@ -2334,12 +2331,9 @@ void map::monster_in_field( monster &z )
             break;
 
         case fd_electricity:
-            if( !z.is_elec_immune() ) {
-                dam += rng(1, cur->getFieldDensity());
-                if (one_in(8 - cur->getFieldDensity())) {
-                    z.moves -= cur->getFieldDensity() * 150;
-                }
-            }
+            // We don't want to increase dam, but deal a separate hit so that it can apply effects
+            z.deal_damage( nullptr, bp_torso,
+                           damage_instance( DT_ELECTRIC, rng( 1, cur->getFieldDensity() * 3 ) ) );
             break;
 
         case fd_fatigue:
@@ -2359,7 +2353,7 @@ void map::monster_in_field( monster &z )
                     int mon_hit = g->mon_at(newpos);
                     if (mon_hit != -1) {
                         if (g->u.sees(z)) {
-                            add_msg(_("The %s teleports into a %s, killing them both!"),
+                            add_msg(_("The %1$s teleports into a %2$s, killing them both!"),
                                        z.name().c_str(), g->zombie(mon_hit).name().c_str());
                         }
                         g->zombie( mon_hit ).die_in_explosion( &z );
@@ -2406,7 +2400,7 @@ void map::monster_in_field( monster &z )
             break;
 
         case fd_fungal_haze:
-            if( !z.type->in_species("FUNGUS") &&
+            if( !z.type->in_species( FUNGUS ) &&
                 !z.type->has_flag("NO_BREATHE") &&
                 !z.make_fungus() ) {
                 // Don't insta-kill jabberwocks, that's silly
@@ -2417,7 +2411,7 @@ void map::monster_in_field( monster &z )
             break;
 
         case fd_fungicidal_gas:
-            if( z.type->in_species("FUNGUS") ) {
+            if( z.type->in_species( FUNGUS ) ) {
                 const int density = cur->getFieldDensity();
                 z.moves -= rng( 10 * density, 30 * density );
                 dam += rng( 4, 7 * density );

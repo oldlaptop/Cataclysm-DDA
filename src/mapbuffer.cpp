@@ -89,8 +89,6 @@ submap *mapbuffer::lookup_submap( const tripoint &p )
     if( iter == submaps.end() ) {
         try {
             return unserialize_submaps( p );
-        } catch (std::string &err) {
-            debugmsg("Failed to load submap (%d,%d,%d): %s", p.x, p.y, p.z, err.c_str());
         } catch (const std::exception &err) {
             debugmsg("Failed to load submap (%d,%d,%d): %s", p.x, p.y, p.z, err.what());
         }
@@ -352,7 +350,7 @@ void mapbuffer::save_quad( const std::string &dirname, const std::string &filena
         jsout.start_array();
         for( auto &elem : sm->spawns ) {
             jsout.start_array();
-            jsout.write( elem.type );
+            jsout.write( elem.type.str() ); // TODO: json should know how to write string_ids
             jsout.write( elem.count );
             jsout.write( elem.posx );
             jsout.write( elem.posy );
@@ -568,7 +566,7 @@ submap *mapbuffer::unserialize_submaps( const tripoint &p )
                 jsin.start_array();
                 while( !jsin.end_array() ) {
                     jsin.start_array();
-                    std::string type = jsin.get_string();
+                    const mtype_id type = mtype_id( jsin.get_string() ); // TODO: json should know how to read an string_id
                     int count = jsin.get_int();
                     int i = jsin.get_int();
                     int j = jsin.get_int();

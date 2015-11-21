@@ -721,8 +721,8 @@ void color_manager::show_gui()
 
         calcStartPos(iStartPos, iCurrentLine, iContentHeight, iMaxColors);
 
-        //Draw Scrollbar
         draw_scrollbar(w_colors_border, iCurrentLine, iContentHeight, iMaxColors, 5);
+        wrefresh(w_colors_border);
 
         auto iter = name_color_map.begin();
         std::advance( iter, iStartPos );
@@ -947,7 +947,7 @@ void color_manager::load_custom(const std::string &sPath)
     try {
         JsonIn jsin(fin);
         deserialize(jsin);
-    } catch (std::string e) {
+    } catch( const JsonError &e ) {
         DebugLog(D_ERROR, DC_ALL) << "load_custom: " << e;
     }
 

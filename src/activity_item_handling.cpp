@@ -235,15 +235,15 @@ static void activity_on_turn_drop_or_stash( enum activity_type act )
                                                          selected_worn_items, worn_item_quantities );
 
     // Consume the list as long as we don't run out of moves.
-    while( g->u.moves >= 0 && !selected_worn_items.empty() ) {
-        place_item_activity( selected_items, item_quantities,
-                             selected_worn_items, worn_item_quantities,
-                             (act == ACT_DROP) ? DROP_WORN : STASH_WORN, drop_target, to_vehicle );
-    }
     while( g->u.moves >= 0 && !selected_items.empty() ) {
         place_item_activity( selected_items, item_quantities,
                              selected_worn_items, worn_item_quantities,
                              (act == ACT_DROP ) ? DROP_NOT_WORN : STASH_NOT_WORN, drop_target, to_vehicle );
+    }
+    while( g->u.moves >= 0 && !selected_worn_items.empty() ) {
+        place_item_activity( selected_items, item_quantities,
+                             selected_worn_items, worn_item_quantities,
+                             (act == ACT_DROP) ? DROP_WORN : STASH_WORN, drop_target, to_vehicle );
     }
     if( selected_items.empty() && selected_worn_items.empty() ) {
         // Yay we're done, just exit.
@@ -419,14 +419,21 @@ static void move_items( const tripoint &src, bool from_vehicle,
  */
 void activity_on_turn_move_items()
 {
+    // Drop activity if we don't know destination coords.
+    if ( g->u.activity.coords.empty() ) {
+        g->u.activity = player_activity();
+        return;
+    }
+
     // Move activity has source square, target square,
     // indices of items on map, and quantities of same.
-    const tripoint source = g->u.activity.placement;
     const tripoint destination = g->u.activity.coords[0];
+    const tripoint source = g->u.activity.placement;
     bool from_vehicle = g->u.activity.values[0];
     bool to_vehicle = g->u.activity.values[1];
     std::list<int> indices;
     std::list<int> quantities;
+
     // Note i = 4, skipping first few elements.
     for( size_t i = 2; i < g->u.activity.values.size(); i += 2 ) {
         indices.push_back( g->u.activity.values[i] );
@@ -434,6 +441,7 @@ void activity_on_turn_move_items()
     }
     // Nuke the current activity, leaving the backlog alone.
     g->u.activity = player_activity();
+
 
     // *puts on 3d glasses from 90s cereal box*
     move_items(source, from_vehicle, destination, to_vehicle, indices, quantities);

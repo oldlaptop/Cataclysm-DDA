@@ -21,6 +21,7 @@ class player;
 class npc;
 struct itype;
 struct mtype;
+using mtype_id = string_id<mtype>;
 struct islot_armor;
 struct use_function;
 class material_type;
@@ -29,6 +30,8 @@ using ammotype = std::string;
 using itype_id = std::string;
 class ma_technique;
 using matec_id = string_id<ma_technique>;
+class Skill;
+using skill_id = string_id<Skill>;
 
 std::string const& rad_badge_color(int rad);
 
@@ -66,11 +69,11 @@ struct iteminfo {
 
 enum layer_level {
     UNDERWEAR = 0,
-    REGULAR_LAYER = 10,
-    WAIST_LAYER = 20,
-    OUTER_LAYER = 30,
-    BELTED_LAYER = 40,
-    MAX_CLOTHING_LAYER = 50
+    REGULAR_LAYER,
+    WAIST_LAYER,
+    OUTER_LAYER,
+    BELTED_LAYER,
+    MAX_CLOTHING_LAYER
 };
 
 class item_category
@@ -97,7 +100,7 @@ class item : public JsonSerializer, public JsonDeserializer
 {
 public:
  item();
- item(const std::string new_type, unsigned int turn, bool rand = true, handedness handed = NONE);
+ item(const std::string new_type, int turn, bool rand = true);
 
         /**
          * Make this a corpse of the given monster type.
@@ -114,8 +117,8 @@ public:
          * Without any parameters it makes a human corpse, created at the current turn.
          */
         /*@{*/
-        void make_corpse( const std::string& mt, unsigned int turn );
-        void make_corpse( const std::string& mt, unsigned int turn, const std::string &name );
+        void make_corpse( const mtype_id& mt, unsigned int turn );
+        void make_corpse( const mtype_id& mt, unsigned int turn, const std::string &name );
         void make_corpse();
         /*@}*/
         /**
@@ -153,7 +156,7 @@ public:
         item &operator=(item &&) = default;
         item &operator=(const item &) = default;
  virtual ~item();
- void make( const std::string new_type );
+ void make( const std::string new_type, bool scrub = false );
 
     /**
      * Returns the default color of the item (e.g. @ref itype::color).
@@ -206,7 +209,7 @@ public:
      */
     int pick_reload_ammo( const player &u, bool interactive );
  bool reload(player &u, int pos);
- std::string skill() const;
+    skill_id skill() const;
 
     template<typename Archive>
     void io( Archive& );
@@ -235,7 +238,6 @@ public:
      */
     int butcher_factor() const;
 
- bool invlet_is_okay();
         bool stacks_with( const item &rhs ) const;
         /**
          * Merge charges of the other item into this item.
@@ -274,8 +276,7 @@ public:
     /**
      * Whether the character needs both hands to wield this item.
      */
-    // TODO: make a reference. Make a const reference.
-    bool is_two_handed(player *u);
+    bool is_two_handed( const player &u ) const;
     /** The weapon is considered a suitable melee weapon. */
     bool is_weap() const;
     /** The item is considered a bashing weapon (inflicts a considerable bash damage). */
@@ -286,7 +287,7 @@ public:
      * The most relevant skill used with this melee weapon. Can be "null" if this is not a weapon.
      * Note this function returns null if the item is a gun for which you can use gun_skill() instead.
      */
-    std::string weap_skill() const;
+    skill_id weap_skill() const;
     /*@}*/
 
  /**
@@ -398,7 +399,7 @@ public:
      * The item must have enough charges for this (>= quantity) and be counted
      * by charges.
      * @param quantity How many charges should be removed.
-     * @return true if all charges would have been removed and the must be destroyed.
+     * @return true if all charges would have been removed and the item must be destroyed.
      * The charges member is not changed in that case (for usage in `player::i_rem`
      * which returns the removed item).
      * False if there are charges remaining, the charges have been reduced in that case.
@@ -460,10 +461,6 @@ public:
 
  int brewing_time() const;
  void detonate( const tripoint &p ) const;
-// Our value as a weapon, given particular skills
- int  weapon_value(player *p) const;
-// As above, but discounts its use as a ranged weapon
- int  melee_value (player *p);
 
     /**
      * @name Material(s) of the item
@@ -541,6 +538,13 @@ public:
     int cut_resist() const;
     int acid_resist() const;
     /*@}*/
+
+    /**
+     * Returns resistance to being damaged by attack against the item itself.
+     * Calculated from item's materials.
+     * @param worst If this is true, the worst resistance is used. Otherwise the best one.
+     */
+    int chip_resistance( bool worst = false ) const;
 
     /**
      * Check whether the item has been marked (by calling mark_as_used_by_player)
@@ -623,6 +627,8 @@ public:
  bool is_software() const;
  bool is_var_veh_part() const;
  bool is_artifact() const;
+ 
+        bool is_dangerous() const; // Is it an active grenade or something similar that will hurt us?
 
         /**
          * Does the item provide the artifact effect when it is wielded?
@@ -649,7 +655,7 @@ public:
     std::string components_to_string() const;
 
  itype_id typeId() const;
- itype* type;
+ const itype* type;
  std::vector<item> contents;
 
         /**
@@ -658,7 +664,7 @@ public:
          * If non-null, the returned itype is quaranted to have an ammo slot:
          * @code itm.get_curammo()->ammo->damage @endcode will work.
          */
-        itype* get_curammo() const;
+        const itype* get_curammo() const;
         /**
          * Returns the item type id of the currently loaded ammo.
          * Returns "null" if the item is not loaded.
@@ -691,10 +697,16 @@ public:
          */
         void on_wear( player &p );
         /**
+         * Callback when a player takes off an item. The item is still in the worn items
+         * vector but will be removed immediately after the function returns
+         */
+        void on_takeoff (player &p);
+        /**
          * Callback when a player starts wielding the item. The item is already in the weapon
          * slot and is called from there.
+         * @param mv number of moves *already* spent wielding the weapon
          */
-        void on_wield( player &p );
+        void on_wield( player &p, int mv = 0 );
         /**
          * Callback when a player starts carrying the item. The item is already in the inventory
          * and is called from there. This is not called when the item is added to the inventory
@@ -786,6 +798,24 @@ public:
         /*@}*/
 
         /**
+         * @name Item properties
+         *
+         * Properties are specific to an item type so unlike flags the meaning of a property
+         * may not be the same for two different item types. Each item type can have mutliple
+         * properties however duplicate property names are not permitted.
+         *
+         */
+        /*@{*/
+        bool has_property (const std::string& prop) const;
+        /**
+          * Get typed property for item.
+          * Return same type as the passed default value, or string where no default provided
+          */
+        std::string get_property_string( const std::string &prop, const std::string& def = "" ) const;
+        long get_property_long( const std::string& prop, long def = 0 ) const;
+        /*@}*/
+
+        /**
          * @name Light emitting items
          *
          * Items can emit light either through the definition of their type
@@ -838,15 +868,6 @@ public:
          */
         /*@{*/
         /**
-         * Make this item into a handed item.
-         * All previous handed info is erased and reset.
-         * Does nothing if the item is no armor at all. If the item type is not handed, it is only
-         * reset to be non-handed regardless of the requested handedness.
-         * @param handed The new handedness. If NONE, the item is made non-handed - all handed
-         * information is erased and only the default coverage (@ref islot_armor::covers) is applied.
-         */
-        void make_handed( handedness handed );
-        /**
          * Whether this item (when worn) covers the given body part.
          */
         bool covers( body_part bp ) const;
@@ -857,7 +878,19 @@ public:
          * For testing only a single body part, use @ref covers instead. This function allows you
          * to get the whole covering data in one call.
          */
-        const std::bitset<num_bp> &get_covered_body_parts() const;
+        std::bitset<num_bp> get_covered_body_parts() const;
+        /**
+          * Returns true if item is armor and can be worn on different sides of the body
+          */
+        bool is_sided() const;
+        /**
+         *  Returns side item currently worn on. Returns BOTH if item is not sided or no side currently set
+         */
+        int get_side() const;
+        /**
+          * Change the side on which the item is worn. Returns false if the item is not sided
+          */
+        bool set_side (side s);
         /**
          * Returns the warmth value that this item has when worn. See player class for temperature
          * related code, or @ref player::warmth. Returned values should be positive. A value
@@ -869,6 +902,10 @@ public:
          * relative value that affects the items resistance against bash / cutting damage.
          */
         int get_thickness() const;
+        /**
+         * Returns clothing layer for item which will always be 0 for non-wearable items.
+         */
+        int get_layer() const;
         /**
          * Returns the relative coverage that this item has when worn.
          * Values range from 0 (not covering anything, or no armor at all) to
@@ -1000,8 +1037,7 @@ public:
          * How much moves (@ref Creature::moves) it takes to reload this item.
          * This also applies to tools.
          */
-        // TODO: constify u
-        int reload_time(player &u) const;
+        int reload_time( const player &u ) const;
         /**
          * The id of the ammo type (@ref ammunition_type) that can be used by this item.
          * Will return "NULL" if the item does not use a specific ammo type. Items without
@@ -1095,7 +1131,7 @@ public:
          * Note that this function is not like @ref skill, it returns "null" for any non-gun (books)
          * for which skill() would return a skill.
          */
-        std::string gun_skill() const;
+        skill_id gun_skill() const;
         /**
          * Returns the appropriate size for a spare magazine used with this gun. If this is not a gun,
          * it returns 0.
@@ -1163,7 +1199,7 @@ public:
          */
         static std::string nname( const itype_id &id, unsigned int quantity = 1 );
         /**
-         * Returns the item type of the given identifier. Never retruns null.
+         * Returns the item type of the given identifier. Never returns null.
          */
         static itype *find_type( const itype_id &id );
         /**
@@ -1183,6 +1219,14 @@ public:
          */
         static bool type_is_defined( const itype_id &id );
 
+        /**
+        * Returns true if item has "item_label" itemvar
+        */
+        bool has_label() const;
+        /**
+        * Returns label from "item_label" itemvar and quantity
+        */
+        std::string label( unsigned int quantity = 0 ) const;
     private:
         /** Reset all members to default, making this a null item. */
         void init();
@@ -1190,8 +1234,7 @@ public:
         enum LIQUID_FILL_ERROR : int;
         LIQUID_FILL_ERROR has_valid_capacity_for_liquid(const item &liquid) const;
         std::string name;
-        std::bitset<num_bp> covered_bodyparts;
-        itype* curammo;
+        const itype* curammo;
         std::map<std::string, std::string> item_vars;
         const mtype* corpse;
         std::set<matec_id> techniques; // item specific techniques
@@ -1219,7 +1262,7 @@ public:
 
  int quiver_store_arrow(item &arrow);
  int max_charges_from_flag(std::string flagName);
- int get_gun_ups_drain() const; 
+ int get_gun_ups_drain() const;
 };
 
 bool item_compare_by_charges( const item& left, const item& right);
@@ -1267,16 +1310,16 @@ class map_item_stack
         map_item_stack( item *it, const tripoint &pos )
         {
             example = it;
-            vIG.push_back(item_group(pos, 1));
-            totalcount = 1;
+            vIG.push_back(item_group(pos, (it->count_by_charges()) ? it->charges : 1));
+            totalcount = (it->count_by_charges()) ? it->charges : 1;
         }
 
         ~map_item_stack() {};
 
-        void addNewPos( const tripoint &pos )
+        void addNewPos( item *it, const tripoint &pos )
         {
-            vIG.push_back(item_group(pos, 1));
-            totalcount++;
+            vIG.push_back(item_group(pos, (it->count_by_charges()) ?it->charges : 1));
+            totalcount += (it->count_by_charges()) ? it->charges : 1;
         }
 
         void incCount()

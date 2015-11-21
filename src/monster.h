@@ -15,6 +15,7 @@ struct mtype;
 enum monster_trigger : int;
 
 using mfaction_id = int_id<monfaction>;
+using mtype_id = string_id<mtype>;
 
 typedef std::map< mfaction_id, std::set< int > > mfactions;
 
@@ -35,8 +36,8 @@ class monster : public Creature, public JsonSerializer, public JsonDeserializer
         friend class editmap;
     public:
         monster();
-        monster( const std::string& id );
-        monster( const std::string& id, const tripoint &pos );
+        monster( const mtype_id& id );
+        monster( const mtype_id& id, const tripoint &pos );
         monster(const monster &) = default;
         monster(monster &&) = default;
         virtual ~monster() override;
@@ -48,11 +49,11 @@ class monster : public Creature, public JsonSerializer, public JsonDeserializer
             return true;
         }
 
-        void poly( const std::string& id );
+        void poly( const mtype_id& id );
         bool can_upgrade();
         void hasten_upgrade();
         void try_upgrade(bool pin_time);
-        void spawn( const tripoint &p); // All this does is moves the monster to p
+        void spawn( const tripoint &p);
         m_size get_size() const override;
         int get_hp( hp_part ) const override
         {
@@ -98,7 +99,7 @@ class monster : public Creature, public JsonSerializer, public JsonDeserializer
         bool made_of(std::string m) const; // Returns true if it's made of m
         bool made_of(phase_id p) const; // Returns true if its phase is p
 
-        bool avoid_trap( const tripoint &pos, const trap &tr ) override;
+        bool avoid_trap( const tripoint &pos, const trap &tr ) const override;
 
         void load_info(std::string data);
 
@@ -106,8 +107,6 @@ class monster : public Creature, public JsonSerializer, public JsonDeserializer
         virtual void serialize(JsonOut &jsout) const override;
         using JsonDeserializer::deserialize;
         virtual void deserialize(JsonIn &jsin) override;
-
-        void debug(player &u);      // Gives debug info
 
         tripoint move_target(); // Returns point at the end of the monster's current plans
         Creature *attack_target(); // Returns the creature at the end of plans (if hostile)
@@ -128,8 +127,10 @@ class monster : public Creature, public JsonSerializer, public JsonDeserializer
         bool will_reach(int x, int y); // Do we have plans to get to (x, y)?
         int  turns_to_reach(int x, int y); // How long will it take?
 
-        void set_dest( const tripoint &p, int &t ); // Go in a straight line to p
-        // t determines WHICH Bresenham line
+        // Go in a straight line to p
+        void set_dest( const tripoint &p );
+        // Reset our plans, we've become aimless.
+        void unset_dest();
 
         /**
          * Set p as wander destination.
@@ -144,13 +145,12 @@ class monster : public Creature, public JsonSerializer, public JsonDeserializer
         // the route.  Give up after f steps.
 
         // How good of a target is given creature (checks for visibility)
-        float rate_target( Creature &c, int &bresen1, int &bresen2, float best, bool smart = false ) const;
+        float rate_target( Creature &c, float best, bool smart = false ) const;
         // Pass all factions to mon, so that hordes of same-faction mons
         // do not iterate over each other
         void plan(const mfactions &factions);
         void move(); // Actual movement
         void footsteps( const tripoint &p ); // noise made by movement
-        void friendly_move();
 
         tripoint scent_move();
         tripoint wander_next();
@@ -167,9 +167,11 @@ class monster : public Creature, public JsonSerializer, public JsonDeserializer
          * @param force If this is set to true, the movement will happen even if
          *              there's currently something blocking the destination.
          *
+         * @param stagger_adjustment is a multiplier for move cost to compensate for staggering.
+         *
          * @return true if movement successful, false otherwise
          */
-        bool move_to( const tripoint &p, bool force = false );
+        bool move_to( const tripoint &p, bool force = false, float stagger_adjustment = 1.0 );
 
         /**
          * Attack any enemies at the given location.
@@ -206,7 +208,7 @@ class monster : public Creature, public JsonSerializer, public JsonDeserializer
          * bash the designated target.  **/
         int group_bash_skill( const tripoint &target );
 
-        void stumble(bool moved);
+        void stumble();
         void knock_back_from( const tripoint &p ) override;
 
         // Combat
@@ -232,8 +234,7 @@ class monster : public Creature, public JsonSerializer, public JsonDeserializer
         using Creature::melee_attack;
         void melee_attack(Creature &p, bool allow_special, const matec_id &force_technique) override;
         virtual int deal_melee_attack(Creature *source, int hitroll) override;
-        virtual int deal_projectile_attack(Creature *source, double missed_by,
-                                           const projectile &proj, dealt_damage_instance &dealt_dam) override;
+        virtual void deal_projectile_attack( Creature *source, dealt_projectile_attack &attack ) override;
         virtual void deal_damage_handle_type(const damage_unit &du, body_part bp, int &damage, int &pain) override;
         void apply_damage(Creature *source, body_part bp, int amount) override;
         // create gibs/meat chunks/blood etc all over the place, does not kill, can be called on a dead monster.
@@ -241,9 +242,10 @@ class monster : public Creature, public JsonSerializer, public JsonDeserializer
         // Let the monster die and let its body explode into gibs
         void die_in_explosion( Creature *source );
         /**
-         * Flat addition to the monsters @ref hp. This is not capped at the maximal hp!
+         * Flat addition to the monsters @ref hp. If `overheal` is true, this is not capped by max hp.
+         * Returns actually healed hp.
          */
-        void heal( int hp_delta );
+        int heal( int hp_delta, bool overheal = false );
         /**
          * Directly set the current @ref hp of the monster (not capped at the maximal hp).
          * You might want to use @ref heal / @ref apply_damage or @ref deal_damage instead.
@@ -282,7 +284,7 @@ class monster : public Creature, public JsonSerializer, public JsonDeserializer
         void on_dodge( Creature *source, int difficulty = INT_MIN ) override;
         // Something hit us (possibly null source)
         void on_hit( Creature *source, body_part bp_hit = num_bp,
-                     int difficulty = INT_MIN, projectile const* const proj = nullptr ) override;
+                     int difficulty = INT_MIN, dealt_projectile_attack const* const proj = nullptr ) override;
         // Get torso - monsters don't have body parts (yet?)
         body_part get_random_body_part( bool main ) const override;
 
@@ -298,12 +300,23 @@ class monster : public Creature, public JsonSerializer, public JsonDeserializer
         void drop_items_on_death();
 
         // Other
-        bool make_fungus();  // Makes this monster into a fungus version
-        // Returns false if no such monster exists
+        /**
+         * Makes this monster into a fungus version
+         * Returns false if no such monster exists
+         */
+        bool make_fungus();
         void make_friendly();
         /** Makes this monster an ally of the given monster. */
         void make_ally(monster* z);
         void add_item(item it);     // Add an item to inventory
+
+        /**
+         * Makes monster react to heard sound
+         *
+         * @param source_volume Volume at the center of the sound source
+         * @param distance Distance to sound source (currently just rl_dist)
+         */
+        void hear_sound( const tripoint &from, int source_volume, int distance );
 
         bool is_hallucination() const override;    // true if the monster isn't actually real
 
@@ -370,10 +383,20 @@ class monster : public Creature, public JsonSerializer, public JsonDeserializer
          */
         void init_from_item( const item &itm );
 
+        int last_updated;
+        /**
+         * Do some cleanup and caching as monster is being unloaded from map.
+         */
+        void on_unload();
+        /**
+         * Retroactively update monster.
+         */
+        void on_load();
+
     private:
         int hp;
         std::vector<int> sp_timeout;
-        std::vector <tripoint> plans;
+        tripoint goal;
         tripoint position;
         bool dead;
         /** Attack another monster */

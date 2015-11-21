@@ -7,6 +7,8 @@
 #include "trap.h"
 #include "output.h"
 #include "item.h"
+#include "item_group.h"
+#include "calendar.h"
 
 #include <unordered_map>
 
@@ -60,6 +62,7 @@ static const std::unordered_map<std::string, ter_bitflags> ter_bitflags_map = { 
     { "INDOORS",                  TFLAG_INDOORS },        // vehicle gain_moves, weather
     { "SHARP",                    TFLAG_SHARP },          // monmove
     { "SUPPORTS_ROOF",            TFLAG_SUPPORTS_ROOF },  // and by building "remodeling" I mean hulkSMASH
+    { "MINEABLE",                 TFLAG_MINEABLE },       // allows mining
     { "SWIMMABLE",                TFLAG_SWIMMABLE },      // monmove, many fields
     { "TRANSPARENT",              TFLAG_TRANSPARENT },    // map::trans / lightmap
     { "NOITEM",                   TFLAG_NOITEM },         // add/spawn_item*()
@@ -75,58 +78,63 @@ static const std::unordered_map<std::string, ter_bitflags> ter_bitflags_map = { 
     { "GOES_DOWN",                TFLAG_GOES_DOWN },      // Allows non-flying creatures to move downwards
     { "GOES_UP",                  TFLAG_GOES_UP },        // Allows non-flying creatures to move upwards
     { "NO_FLOOR",                 TFLAG_NO_FLOOR },       // Things should fall when placed on this tile
+    { "SEEN_FROM_ABOVE",          TFLAG_SEEN_FROM_ABOVE },// This should be visible if the tile above has no floor
+    { "RAMP",                     TFLAG_RAMP },           // Can be used to move up a z-level
 } };
 
-void load_map_bash_item_drop_list(JsonArray ja, std::vector<map_bash_item_drop> &items) {
+void load_map_bash_tent_centers( JsonArray ja, std::vector<std::string> &centers ) {
     while ( ja.has_more() ) {
-        JsonObject jio = ja.next_object();
-        map_bash_item_drop drop( jio.get_string("item"), jio.get_int("amount"), jio.get_int("minamount", -1) );
-        drop.chance = jio.get_int("chance", -1);
-        items.push_back(drop);
+        centers.push_back( ja.next_string() );
     }
 }
 
 bool map_bash_info::load(JsonObject &jsobj, std::string member, bool isfurniture) {
-    if( jsobj.has_object(member) ) {
-        JsonObject j = jsobj.get_object(member);
-        str_min = j.get_int("str_min", 0);
-        str_max = j.get_int("str_max", 0);
-
-        str_min_blocked = j.get_int("str_min_blocked", -1);
-        str_max_blocked = j.get_int("str_max_blocked", -1);
-
-        str_min_supported = j.get_int("str_min_supported", -1);
-        str_max_supported = j.get_int("str_max_supported", -1);
-
-        str_min_roll = j.get_int("str_min_roll", str_min);
-        str_max_roll = j.get_int("str_min_roll", str_max);
-
-        explosive = j.get_int("explosive", -1);
-
-        sound_vol = j.get_int("sound_vol", -1);
-        sound_fail_vol = j.get_int("sound_fail_vol", -1);
-
-        destroy_only = j.get_bool("destroy_only", false);
-
-        bash_below = j.get_bool("bash_below", false);
-
-        sound = j.get_string("sound", _("smash!"));
-        sound_fail = j.get_string("sound_fail", _("thump!"));
-
-        if (isfurniture) {
-            furn_set = j.get_string("furn_set", "f_null");
-        } else {
-            ter_set = j.get_string( "ter_set" );
-        }
-
-        if ( j.has_array("items") ) {
-            load_map_bash_item_drop_list(j.get_array("items"), items);
-        }
-
-        return true;
-    } else {
+    if( !jsobj.has_object(member) ) {
         return false;
     }
+
+    JsonObject j = jsobj.get_object(member);
+    str_min = j.get_int("str_min", 0);
+    str_max = j.get_int("str_max", 0);
+
+    str_min_blocked = j.get_int("str_min_blocked", -1);
+    str_max_blocked = j.get_int("str_max_blocked", -1);
+
+    str_min_supported = j.get_int("str_min_supported", -1);
+    str_max_supported = j.get_int("str_max_supported", -1);
+
+    explosive = j.get_int("explosive", -1);
+
+    sound_vol = j.get_int("sound_vol", -1);
+    sound_fail_vol = j.get_int("sound_fail_vol", -1);
+
+    collapse_radius = j.get_int( "collapse_radius", 1 );
+
+    destroy_only = j.get_bool("destroy_only", false);
+
+    bash_below = j.get_bool("bash_below", false);
+
+    sound = j.get_string("sound", _("smash!"));
+    sound_fail = j.get_string("sound_fail", _("thump!"));
+
+    if( isfurniture ) {
+        furn_set = j.get_string("furn_set", "f_null");
+    } else {
+        ter_set = j.get_string( "ter_set" );
+    }
+
+    if( j.has_member( "items" ) ) {
+        JsonIn& stream = *j.get_raw( "items" );
+        drop_group = item_group::load_item_group( stream, "collection" );
+    } else {
+        drop_group = "EMPTY_GROUP";
+    }
+
+    if( j.has_array("tent_centers") ) {
+        load_map_bash_tent_centers( j.get_array("tent_centers"), tent_centers );
+    }
+
+    return true;
 }
 
 bool map_deconstruct_info::load(JsonObject &jsobj, std::string member, bool isfurniture)
@@ -141,7 +149,8 @@ bool map_deconstruct_info::load(JsonObject &jsobj, std::string member, bool isfu
     }
     can_do = true;
 
-    load_map_bash_item_drop_list(j.get_array("items"), items);
+    JsonIn& stream = *j.get_raw( "items" );
+    drop_group = item_group::load_item_group( stream, "collection" );
     return true;
 }
 
@@ -149,8 +158,8 @@ furn_t null_furniture_t() {
   furn_t new_furniture;
   new_furniture.id = "f_null";
   new_furniture.name = _("nothing");
-  new_furniture.sym = ' ';
-  new_furniture.color = c_white;
+  new_furniture.symbol_.fill( ' ' );
+  new_furniture.color_.fill( c_white );
   new_furniture.movecost = 0;
   new_furniture.move_str_req = -1;
   new_furniture.transparent = true;
@@ -167,8 +176,8 @@ ter_t null_terrain_t() {
   ter_t new_terrain;
   new_terrain.id = "t_null";
   new_terrain.name = _("nothing");
-  new_terrain.sym = ' ';
-  new_terrain.color = c_white;
+  new_terrain.symbol_.fill( ' ' );
+  new_terrain.color_.fill( c_white );
   new_terrain.movecost = 2;
   new_terrain.trap = tr_null;
   new_terrain.trap_id_str = "";
@@ -187,6 +196,70 @@ ter_t null_terrain_t() {
   return new_terrain;
 }
 
+long string_to_symbol( JsonIn &js )
+{
+    const std::string s = js.get_string();
+    if( s == "LINE_XOXO" ) {
+        return LINE_XOXO;
+    } else if( s == "LINE_OXOX" ) {
+        return LINE_OXOX;
+    } else if( s.length() != 1 ) {
+        js.error( "Symbol string must be exactly 1 character long." );
+    }
+    return s[0];
+}
+
+template<typename C, typename F>
+void load_season_array( JsonIn &js, C &container, F load_func )
+{
+    if( js.test_array() ) {
+        js.start_array();
+        for( auto &season_entry : container ) {
+            season_entry = load_func( js );
+            js.end_array(); // consume separator
+        }
+    } else {
+        container.fill( load_func( js ) );
+    }
+}
+
+nc_color bgcolor_from_json( JsonIn &js)
+{
+    return bgcolor_from_string( js.get_string() );
+}
+
+nc_color color_from_json( JsonIn &js)
+{
+    return color_from_string( js.get_string() );
+}
+
+void map_data_common_t::load_symbol( JsonObject &jo )
+{
+    load_season_array( *jo.get_raw( "symbol" ), symbol_, string_to_symbol );
+
+    const bool has_color = jo.has_member( "color" );
+    const bool has_bgcolor = jo.has_member( "bgcolor" );
+    if( has_color && has_bgcolor ) {
+        jo.throw_error( "Found both color and bgcolor, only one of these is allowed." );
+    } else if( has_color ) {
+        load_season_array( *jo.get_raw( "color" ), color_, color_from_json );
+    } else if( has_bgcolor ) {
+        load_season_array( *jo.get_raw( "bgcolor" ), color_, bgcolor_from_json );
+    } else {
+        jo.throw_error( "Missing member: one of: \"color\", \"bgcolor\" must exist." );
+    }
+}
+
+long map_data_common_t::symbol() const
+{
+    return symbol_[calendar::turn.get_season()];
+}
+
+nc_color map_data_common_t::color() const
+{
+    return color_[calendar::turn.get_season()];
+}
+
 void load_furniture(JsonObject &jsobj)
 {
   if ( furnlist.empty() ) {
@@ -200,20 +273,8 @@ void load_furniture(JsonObject &jsobj)
       return;
   }
   new_furniture.name = _(jsobj.get_string("name").c_str());
-  new_furniture.sym = jsobj.get_string("symbol").c_str()[0];
 
-  bool has_color = jsobj.has_member("color");
-  bool has_bgcolor = jsobj.has_member("bgcolor");
-  if(has_color && has_bgcolor) {
-    debugmsg("Found both color and bgcolor for %s, use only one of these.", new_furniture.name.c_str());
-    new_furniture.color = c_white;
-  } else if(has_color) {
-    new_furniture.color = color_from_string(jsobj.get_string("color"));
-  } else if(has_bgcolor) {
-    new_furniture.color = bgcolor_from_string(jsobj.get_string("bgcolor"));
-  } else {
-    debugmsg("Furniture %s needs at least one of: color, bgcolor.", new_furniture.name.c_str());
-  }
+    new_furniture.load_symbol( jsobj );
 
   new_furniture.movecost = jsobj.get_int("move_cost_mod");
   new_furniture.move_str_req = jsobj.get_int("required_str");
@@ -264,17 +325,8 @@ void load_terrain(JsonObject &jsobj)
   }
   new_terrain.name = _(jsobj.get_string("name").c_str());
 
-  //Special case for the LINE_ symbols
-  std::string symbol = jsobj.get_string("symbol");
-  if("LINE_XOXO" == symbol) {
-    new_terrain.sym = LINE_XOXO;
-  } else if("LINE_OXOX" == symbol) {
-    new_terrain.sym = LINE_OXOX;
-  } else {
-    new_terrain.sym = symbol.c_str()[0];
-  }
+    new_terrain.load_symbol( jsobj );
 
-  new_terrain.color = color_from_string(jsobj.get_string("color"));
   new_terrain.movecost = jsobj.get_int("move_cost");
 
   if(jsobj.has_member("trap")) {
@@ -442,13 +494,14 @@ ter_id t_null,
     t_window_alarm, t_window_alarm_taped, t_window_empty, t_window_frame, t_window_boarded,
     t_window_boarded_noglass, t_window_reinforced, t_window_reinforced_noglass, t_window_enhanced, t_window_enhanced_noglass, t_window_bars_alarm,
     t_window_stained_green, t_window_stained_red, t_window_stained_blue,
+    t_window_no_curtains, t_window_no_curtains_open, t_window_no_curtains_taped,
     t_rock, t_fault,
     t_paper,
     t_rock_wall, t_rock_wall_half,
     // Tree
     t_tree, t_tree_young, t_tree_apple, t_tree_apple_harvested, t_tree_pear, t_tree_pear_harvested, t_tree_cherry, t_tree_cherry_harvested,
     t_tree_peach, t_tree_peach_harvested, t_tree_apricot, t_tree_apricot_harvested, t_tree_plum, t_tree_plum_harvested,
-    t_tree_pine, t_tree_blackjack, t_tree_deadpine, t_underbrush, t_shrub, t_shrub_blueberry, t_shrub_strawberry, t_trunk,
+    t_tree_pine, t_tree_blackjack, t_tree_birch, t_tree_willow, t_tree_maple, t_tree_hickory, t_tree_hickory_dead, t_tree_hickory_harvested, t_tree_deadpine, t_underbrush, t_shrub, t_shrub_blueberry, t_shrub_strawberry, t_trunk,
     t_root_wall,
     t_wax, t_floor_wax,
     t_fence_v, t_fence_h, t_chainfence_v, t_chainfence_h, t_chainfence_posts,
@@ -605,6 +658,9 @@ void set_ter_ids() {
     t_window_stained_green=terfind("t_window_stained_green");
     t_window_stained_red=terfind("t_window_stained_red");
     t_window_stained_blue=terfind("t_window_stained_blue");
+    t_window_no_curtains=terfind("t_window_no_curtains");
+    t_window_no_curtains_open=terfind("t_window_no_curtains_open");
+    t_window_no_curtains_taped=terfind("t_window_no_curtains_taped");
     t_rock=terfind("t_rock");
     t_fault=terfind("t_fault");
     t_paper=terfind("t_paper");
@@ -626,7 +682,13 @@ void set_ter_ids() {
     t_tree_plum_harvested=terfind("t_tree_plum_harvested");
     t_tree_pine=terfind("t_tree_pine");
     t_tree_blackjack=terfind("t_tree_blackjack");
+    t_tree_birch=terfind("t_tree_birch");
+    t_tree_willow=terfind("t_tree_willow");
+    t_tree_maple=terfind("t_tree_maple");
     t_tree_deadpine=terfind("t_tree_deadpine");
+    t_tree_hickory=terfind("t_tree_hickory");
+    t_tree_hickory_dead=terfind("t_tree_hickory_dead");
+    t_tree_hickory_harvested=terfind("t_tree_hickory_harvested");
     t_underbrush=terfind("t_underbrush");
     t_shrub=terfind("t_shrub");
     t_shrub_blueberry=terfind("t_shrub_blueberry");
@@ -898,11 +960,8 @@ ter_furn_id::ter_furn_id() {
 
 void check_bash_items(const map_bash_info &mbi, const std::string &id, bool is_terrain)
 {
-    for( auto &elem : mbi.items ) {
-        const std::string &it = elem.itemtype;
-        if( !item::type_is_defined( it ) ) {
-            debugmsg("%s: bash result item %s does not exist", id.c_str(), it.c_str());
-        }
+    if( !item_group::group_is_defined( mbi.drop_group ) ) {
+        debugmsg( "%s: bash result item group %s does not exist", id.c_str(), mbi.drop_group.c_str() );
     }
     if (mbi.str_max != -1) {
         if (is_terrain && mbi.ter_set.empty()) {
@@ -922,11 +981,8 @@ void check_decon_items(const map_deconstruct_info &mbi, const std::string &id, b
     if (!mbi.can_do) {
         return;
     }
-    for( auto &elem : mbi.items ) {
-        const std::string &it = elem.itemtype;
-        if( !item::type_is_defined( it ) ) {
-            debugmsg("%s: deconstruct result item %s does not exist", id.c_str(), it.c_str());
-        }
+    if( !item_group::group_is_defined( mbi.drop_group ) ) {
+        debugmsg( "%s: deconstruct result item group %s does not exist", id.c_str(), mbi.drop_group.c_str() );
     }
     if (is_terrain && mbi.ter_set.empty()) {
         debugmsg("deconstruct result terrain of %s is undefined/empty", id.c_str());

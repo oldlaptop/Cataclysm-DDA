@@ -1,51 +1,20 @@
-#define CATCH_CONFIG_MAIN
 #include "catch/catch.hpp"
 
 #include "filesystem.h"
-#include "game.h"
-#include "init.h"
 #include "mongroup.h"
-#include "monstergenerator.h"
-#include "morale.h"
 #include "npc.h"
 #include "overmap.h"
-#include "path_info.h"
-#include "player.h"
-#include "worldfactory.h"
 
+#include <fstream>
 #include <ostream>
-
-void init_global_game_state() {
-    PATH_INFO::init_base_path("");
-    PATH_INFO::init_user_dir("./");
-    PATH_INFO::set_standard_filenames();
-
-    initOptions();
-    load_options();
-    init_colors();
-
-    g = new game;
-
-    g->load_static_data();
-    g->load_core_data();
-    DynamicDataLoader::get_instance().finalize_loaded_data();
-
-    world_generator->set_active_world(NULL);
-    world_generator->get_all_worlds();
-    WORLDPTR test_world = world_generator->make_new_world( false );
-    world_generator->set_active_world(test_world);
-
-    g->u = player();
-    g->u.create(PLTYPE_NOW);
-}
 
 // Intentionally ignoring the name member.
 bool operator==(const city &a, const city &b) {
-  return a.x == b.x && a.y == b.y && a.s == b.s;
+    return a.x == b.x && a.y == b.y && a.s == b.s;
 }
 bool operator==(const radio_tower &a, const radio_tower &b) {
-  return a.x == b.x && a.y == b.y && a.strength == b.strength &&
-    a.type == b.type && a.message == b.message;
+    return a.x == b.x && a.y == b.y && a.strength == b.strength &&
+      a.type == b.type && a.message == b.message;
 }
 
 void check_test_overmap_data( const overmap &test_map )
@@ -184,16 +153,16 @@ void check_test_overmap_data( const overmap &test_map )
     }
     // Spot-check some monsters.
     std::vector<std::pair<tripoint, monster>> expected_monsters{
-        {{251, 86, 0},{ "mon_zombie", {140, 23, 0}}},
-        {{253, 87, 0},{ "mon_zombie", {136, 25, 0}}},
-        {{259, 95, 0},{ "mon_zombie", {143, 122, 0}}},
-        {{259, 94, 0},{ "mon_zombie", {139, 109, 0}}},
-        {{259, 91, 0},{ "mon_dog", {139, 82, 0}}},
-        {{194, 87, -3},{"mon_irradiated_wanderer_4", {119, 73, -3}}},
-        {{194, 87, -3},{ "mon_charred_nightmare", {117, 83, -3}}},
-        {{142, 96, 0},{ "mon_deer", {16, 109, 0}}},
-        {{196, 66, -1},{ "mon_turret", {17, 65, -1}}},
-        {{196, 63, -1},{ "mon_broken_cyborg", {19, 26, -1}}}
+        {{251, 86, 0},{ mtype_id("mon_zombie"), {140, 23, 0}}},
+        {{253, 87, 0},{ mtype_id("mon_zombie"), {136, 25, 0}}},
+        {{259, 95, 0},{ mtype_id("mon_zombie"), {143, 122, 0}}},
+        {{259, 94, 0},{ mtype_id("mon_zombie"), {139, 109, 0}}},
+        {{259, 91, 0},{ mtype_id("mon_dog"), {139, 82, 0}}},
+        {{194, 87, -3},{ mtype_id("mon_irradiated_wanderer_4"), {119, 73, -3}}},
+        {{194, 87, -3},{ mtype_id("mon_charred_nightmare"), {117, 83, -3}}},
+        {{142, 96, 0},{ mtype_id("mon_deer"), {16, 109, 0}}},
+        {{196, 66, -1},{ mtype_id("mon_turret"), {17, 65, -1}}},
+        {{196, 63, -1},{ mtype_id("mon_broken_cyborg"), {19, 26, -1}}}
     };
     for( auto candidate_monster : expected_monsters ) {
         REQUIRE(test_map.monster_check(candidate_monster));
@@ -205,23 +174,23 @@ void check_test_overmap_data( const overmap &test_map )
             REQUIRE(test_npc->get_dex() == 8);
             REQUIRE(test_npc->get_int() == 7);
             REQUIRE(test_npc->get_per() == 10);
-            REQUIRE(test_npc->get_skill_level("barter") == 4);
-            REQUIRE(test_npc->get_skill_level("driving") == 2);
-            REQUIRE(test_npc->get_skill_level("firstaid") == 7);
-            REQUIRE(test_npc->get_skill_level("mechanics") == 5);
-            REQUIRE(test_npc->get_skill_level("dodge") == 3);
-            REQUIRE(test_npc->get_skill_level("launcher") == 3);
+            REQUIRE(test_npc->get_skill_level(skill_id("barter")) == 4);
+            REQUIRE(test_npc->get_skill_level(skill_id("driving")) == 2);
+            REQUIRE(test_npc->get_skill_level(skill_id("firstaid")) == 7);
+            REQUIRE(test_npc->get_skill_level(skill_id("mechanics")) == 5);
+            REQUIRE(test_npc->get_skill_level(skill_id("dodge")) == 3);
+            REQUIRE(test_npc->get_skill_level(skill_id("launcher")) == 3);
             REQUIRE(test_npc->pos() == tripoint(168, 66, 0));
         } else if( test_npc->disp_name() == "Mariann Araujo" ) {
             REQUIRE(test_npc->get_str() == 11);
             REQUIRE(test_npc->get_dex() == 9);
             REQUIRE(test_npc->get_int() == 10);
             REQUIRE(test_npc->get_per() == 10);
-            REQUIRE(test_npc->get_skill_level("barter") == 4);
-            REQUIRE(test_npc->get_skill_level("driving") == 0);
-            REQUIRE(test_npc->get_skill_level("firstaid") == 5);
-            REQUIRE(test_npc->get_skill_level("bashing") == 5);
-            REQUIRE(test_npc->get_skill_level("dodge") == 4);
+            REQUIRE(test_npc->get_skill_level(skill_id("barter")) == 4);
+            REQUIRE(test_npc->get_skill_level(skill_id("driving")) == 0);
+            REQUIRE(test_npc->get_skill_level(skill_id("firstaid")) == 5);
+            REQUIRE(test_npc->get_skill_level(skill_id("bashing")) == 5);
+            REQUIRE(test_npc->get_skill_level(skill_id("dodge")) == 4);
             REQUIRE(test_npc->pos() == tripoint(72, 54, 0));
         } else {
             // Unrecognized NPC, fail.
@@ -232,15 +201,13 @@ void check_test_overmap_data( const overmap &test_map )
 
 TEST_CASE("Reading a legacy overmap save.") {
 
-    std::string legacy_save_name = "data/legacy_0.C_overmap.sav";
-    std::string new_save_name = "data/jsionized_overmap.sav";
-
-    init_global_game_state();
+    std::string legacy_save_name = "tests/data/legacy_0.C_overmap.sav";
+    std::string new_save_name = "tests/data/jsionized_overmap.sav";
 
     overmap test_map;
     std::ifstream fin;
 
-    fin.open( legacy_save_name.c_str() );
+    fin.open( legacy_save_name.c_str(), std::ifstream::binary );
     REQUIRE( fin.is_open() );
     test_map.unserialize( fin );
     fin.close();
@@ -248,14 +215,14 @@ TEST_CASE("Reading a legacy overmap save.") {
 
     std::ofstream fout;
 
-    fout.open( new_save_name.c_str() );
+    fout.open( new_save_name.c_str(), std::ofstream::binary );
     REQUIRE( fout.is_open() );
     test_map.serialize(fout);
     fout.close();
 
     overmap test_map_2;
 
-    fin.open( new_save_name.c_str() );
+    fin.open( new_save_name.c_str(), std::ifstream::binary );
     REQUIRE( fin.is_open() );
     test_map_2.unserialize( fin );
     fin.close();

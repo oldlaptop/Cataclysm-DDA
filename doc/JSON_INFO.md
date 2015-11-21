@@ -16,7 +16,19 @@
 * mutations.json     - traits/mutations
 * vehicle_groups.json - vehicle spawn groups
 * vehicle_parts.json - vehicle parts, does NOT affect flag effects
-* vehicles.json      - vehicle definitions
+
+##raw/vehicles
+groups of vehicle definitions with self-explanatory names of files:
+* bikes.json
+* cars.json
+* carts.json
+* emergency.json
+* farm.json
+* military.json
+* trucks.json
+* utility.json
+* vans_busses.json
+* vehicles.json
 
 ##raw/items
 * archery.json       - bows and arrows
@@ -99,7 +111,7 @@ The syntax listed here is still valid.
   { "monster" : "mon_ant_soldier", "freq" : 90, "multiplier" : 5 }, // the default monster will fill in the remaining. "multiplier" increases
   { "monster" : "mon_ant_queen", "freq" : 0, "multiplier" : 0 }     // how much each monster counts for in a spawn group (i.e. will spawn 5 larva or 1 soldier)
   { "monster" : "mon_thing",              // Monsters id
-    "freq" : 100,                         // Chance of occurence, out of a thousand
+    "freq" : 100,                         // Chance of occurrence, out of a thousand
     "multiplier" : 0,                     // How many monsters each monster in this definition should count as, if spawning a limited number of monsters
     // The minimum and maximum number of monsters in this group that should spawn together. Optional, defaults [1,1]
     "pack_size" : [3,5],                    
@@ -141,6 +153,7 @@ The syntax listed here is still valid.
 "vision_night" : 1,                 // Vision range in total darkness
 "luminance" : 0,					// Amount of light passively output by monster. Ranges from 0 to 10.
 "hp" : 10,							// Monster hit points
+"death_drops": "some-group-id",     // An item group that is used to spawn items when the monster dies. This can be an inlined item group, see ITEM_SPAWN.md. The default subtype is "distribution".
 "special_freq" : 0,					// Number of turns required to "charge" a monster's special attack
 "death_function" : "NORMAL",		// How the monster behaves on death. See JSON_FLAGS.md for a list of possible functions. Supports multiple death functions
 "special_attack" : "BITE",			// Monster's special attack. See JSON_FLAGS.md for a list of possible special attacks. A monster can have only one special attack
@@ -296,20 +309,21 @@ The syntax listed here is still valid.
 "fuel_type": "NULL",          // (Optional, default = "NULL") Type of fuel/ammo the part consumes, as an item id
 "item": "wheel",              // The item used to install this part, and the item obtained when removing this part
 "difficulty": 4,              // Your mechanics skill must be at least this level to install this part
-"breaks_into" : [             // When the vehicle part is destroyed, items from this list will be spawned around the part on the ground.
-  {"item": "scrap", "min": 0, "max": 5} // item is the item id, min/max is the amount of items to spawn, if item is counted by charges (like nails), it will create that many charges.
+"breaks_into" : [             // When the vehicle part is destroyed, items from this item group (see ITEM_SPAWN.md) will be spawned around the part on the ground.
+  {"item": "scrap", "count": [0,5]} // instead of an array, this can be an inline item group,
 ],
+"breaks_into" : "some_item_group", // or just the id of an item group.
 "flags": [                    // Flags associated with the part
      "EXTERNAL", "MOUNT_OVER", "WHEEL", "MOUNT_POINT", "VARIABLE_SIZE"
 ]
 ```
 ###VEHICLE PLACEMENT
 ```C++
-"id":"road_straight_wrecks",            // Unique ID. Must be one continuous word, use underscores if necessary
-"locations":[ {                 // List of potential vehicle locations. When this placement is used, one of those locations will be chosen at random.
-  "x" : [0,19],           //    The x placement. Can be a single value or a range of possibilities.
-  "y" : 8,          //    The y placement. Can be a single value or a range of possibilities.
-  "facing" : [90,270] // The facing of the vehicle. Can be a single value or an array of possible values.
+"id":"road_straight_wrecks",  // Unique ID. Must be one continuous word, use underscores if necessary
+"locations":[ {               // List of potential vehicle locations. When this placement is used, one of those locations will be chosen at random.
+  "x" : [0,19],               // The x placement. Can be a single value or a range of possibilities.
+  "y" : 8,                    // The y placement. Can be a single value or a range of possibilities.
+  "facing" : [90,270]         // The facing of the vehicle. Can be a single value or an array of possible values.
 } ]
 ```
 ###VEHICLE SPAWN
@@ -353,11 +367,11 @@ The syntax listed here is still valid.
 "price" : 500,        // Used when bartering with NPC's
 "name" : "birdshot",  // In-game name displayed
 "symbol" : "=",       // ASCII character used in-game
-"color" : "red",      // ASCII character colour
+"color" : "red",      // ASCII character color
 "description" : "Weak shotgun ammunition. Designed for hunting birds and other small game, its applications in combat are very limited.", // In-game description
 "material" : "plastic", // Material types.  See materials.json for possible options
 "volume" : 2,         // Volume, measured in 1/4 liters
-"weight" : 34,        // Weight, measuted in grams
+"weight" : 34,        // Weight, measured in grams
 "bashing" : 1,        // Bashing damage caused by using it as a melee weapon
 "cutting" : 0,        // Cutting damage caused by using it as a melee weapon
 "to_hit" : 0,         // To-hit bonus if using it as a melee weapon
@@ -377,12 +391,12 @@ The syntax listed here is still valid.
 "id" : "socks",       // Unique ID. Must be one continuous word, use underscores if necessary
 "name" : "socks",     // The name appearing in the examine box.  Can be more than one word separated by spaces
 "weight" : 350,       // Weight of the item in grams
-"color" : "blue",     // ASCII character colour
+"color" : "blue",     // ASCII character color
 "to_hit" : 0,         // To-hit bonus if using it as a melee weapon (whatever for?)
 "symbol" : "[",       // ASCII character used in-game
 "description" : "Socks. Put 'em on your feet.", // Description of the item
 "price" : 100,        // Used when bartering with NPCs
-"material" : ["COTTON"],    // Material types, can abe as many as you want.  See materials.json for possible options
+"material" : ["COTTON"],    // Material types, can be as many as you want.  See materials.json for possible options
 "volume" : 1,         // Volume, measured in 1/4 liters
 "cutting" : 0,        // Cutting damage caused by using it as a melee weapon
 "phase" : "solid",    // What phase it is
@@ -399,9 +413,9 @@ Armor can be define like this:
 "storage" : 0,        // How many volume storage slots it adds
 "warmth" : 10,        // How much warmth clothing provides
 "environmental_protection" : 0,  // How much environmental protection it affords
-"encumberance" : 0,   // Base encumbrance (unfitted value)
+"encumbrance" : 0,   // Base encumbrance (unfitted value)
 "coverage" : 80,      // What percentage of body part
-"material_thickness" : 1  // Thickness of material, in millimetre units (approximately).  Generally ranges between 1 - 5, more unusual armour types go up to 10 or more
+"material_thickness" : 1  // Thickness of material, in millimetre units (approximately).  Generally ranges between 1 - 5, more unusual armor types go up to 10 or more
 "power_armor" : false, // If this is a power armor item (those are special).
 ```
 Alternately, every item (book, tool, gun, even food) can be used as armor if it has armor_data:
@@ -413,7 +427,7 @@ Alternately, every item (book, tool, gun, even food) can be used as armor if it 
     "storage" : 0,
     "warmth" : 10,
     "environmental_protection" : 0,
-    "encumberance" : 0,
+    "encumbrance" : 0,
     "coverage" : 80,
     "material_thickness" : 1
     "power_armor" : false
@@ -470,7 +484,7 @@ Never use `yellow` and `red`, those colors are reserved for sounds and infrared 
 "id" : "crack",       // Unique ID. Must be one continuous word, use underscores if necessary
 "name" : "crack",     // In-game name displayed
 "weight" : 1,         // Weight, measured in grams
-"color" : "white",    // ASCII character colour
+"color" : "white",    // ASCII character color
 "addiction_type" : "crack", // Addiction type
 "spoils_in" : 0,      // How long a comestible is good for. 0 = no spoilage
 "use_action" : "CRACK", // What effects a comestible has when used, see special definitions below
@@ -514,12 +528,12 @@ Alternately, every item can be used as container:
 }
 ```
 This defines a armor (you need to add all the armor specific entries), but makes it usable as container.
-It could also be written as a generic item ("tpye": "GENERIC") with "armor_data" and "container_data" entries.
+It could also be written as a generic item ("type": "GENERIC") with "armor_data" and "container_data" entries.
 ###MELEE
 ```C++
 "id": "hatchet",      // Unique ID. Must be one continuous word, use underscores if necessary
 "symbol": ";",        // ASCII character used in-game
-"color": "light_gray", // ASCII character colour
+"color": "light_gray", // ASCII character color
 "name": "hatchet",    // In-game name displayed
 "description": "A one-handed hatchet. Makes a great melee weapon, and is useful both for cutting wood, and for use as a hammer.", // In-game description
 "price": 95,          // Used when bartering with NPCs
@@ -571,7 +585,7 @@ Alternately, every item (book, tool, armor, even food) can be used as gun if it 
 "id": "torch_lit",    // Unique ID. Must be one continuous word, use underscores if necessary
 "type": "TOOL",       // Defines this as a TOOL
 "symbol": "/",        // ASCII character used in-game
-"color": "brown",     // ASCII character colour
+"color": "brown",     // ASCII character color
 "name": "torch (lit)", // In-game name displayed
 "description": "A large stick, wrapped in gasoline soaked rags. This is burning, producing plenty of light", // In-game description
 "price": 0,           // Used when bartering with NPCs
@@ -613,6 +627,103 @@ Every item type can have optional seed data, if the item has seed data, it's con
 }
 ```
 
+###ARTIFACT DATA
+Every item type can have optional artifact properties (which makes it an artifact):
+```JSON
+"artifact_data" : {
+    "charge_type": "ARTC_PAIN",
+    "effects_carried": ["AEP_INT_DOWN"],
+    "effects_wielded": ["AEP_DEX_UP"],
+    "effects_activated": ["AEA_BLOOD", "AEA_NOISE"],
+    "effects_worn": ["AEP_STR_UP"]
+}
+```
+
+#### charge_type
+(optional, default: "ARTC_NULL") How the item is recharged. For this to work, the item needs to be a tool that consumes charges upon invocation and has non-zero max_charges. Possible values (see src/artifact.h for an up-to-date list):
+- "ARTC_NULL" Never recharges!
+- "ARTC_TIME" Very slowly recharges with time
+- "ARTC_SOLAR" Recharges in sunlight
+- "ARTC_PAIN" Creates pain to recharge
+- "ARTC_HP" Drains HP to recharge
+
+#### effects_carried
+(optional, default: empty list) Effects of the artifact when it's in the inventory (main inventory, wielded, or worn) of the player. Possible values (see src/enums.h for an up-to-date list):
+- "AEP_STR_UP" Strength + 4
+- "AEP_DEX_UP" Dexterity + 4
+- "AEP_PER_UP" Perception + 4
+- "AEP_INT_UP" Intelligence + 4
+- "AEP_ALL_UP" All stats + 2
+- "AEP_SPEED_UP" +20 speed
+- "AEP_IODINE" Reduces radiation
+- "AEP_SNAKES" Summons friendly snakes when you're hit
+- "AEP_INVISIBLE" Makes you invisible
+- "AEP_CLAIRVOYANCE" See through walls
+- "AEP_SUPER_CLAIRVOYANCE" See through walls to a great distance
+- "AEP_STEALTH" Your steps are quieted
+- "AEP_EXTINGUISH" May extinguish nearby flames
+- "AEP_GLOW" Four-tile light source
+- "AEP_PSYSHIELD" Protection from stare attacks
+- "AEP_RESIST_ELECTRICITY" Protection from electricity
+- "AEP_CARRY_MORE" Increases carrying capacity by 200
+- "AEP_SAP_LIFE" Killing non-zombie monsters may heal you
+- "AEP_HUNGER" Increases hunger
+- "AEP_THIRST" Increases thirst
+- "AEP_SMOKE" Emits smoke occasionally
+- "AEP_EVIL" Addiction to the power
+- "AEP_SCHIZO" Mimicks schizophrenia
+- "AEP_RADIOACTIVE" Increases your radiation
+- "AEP_MUTAGENIC" Mutates you slowly
+- "AEP_ATTENTION" Draws netherworld attention slowly
+- "AEP_STR_DOWN" Strength - 3
+- "AEP_DEX_DOWN" Dex - 3
+- "AEP_PER_DOWN" Per - 3
+- "AEP_INT_DOWN" Int - 3
+- "AEP_ALL_DOWN" All stats - 2
+- "AEP_SPEED_DOWN" -20 speed
+- "AEP_FORCE_TELEPORT" Occasionally force a teleport
+- "AEP_MOVEMENT_NOISE" Makes noise when you move
+- "AEP_BAD_WEATHER" More likely to experience bad weather
+- "AEP_SICK" Decreases health over time
+
+#### effects_worn
+(optional, default: empty list) Effects of the artifact when it's worn (it must be an armor item to be worn). Possible values are the same as for effects_carried.
+
+#### effects_wielded
+(optional, default: empty list) Effects of the artifact when it's wielded. Possible values are the same as for effects_carried.
+
+#### effects_activated
+(optional, default: empty list) Effects of the artifact when it's activated (which require it to have a `"use_action": "ARTIFACT"` and it must have a non-zero max_charges value). Possible values (see src/artifact.h for an up-to-date list):
+- "AEA_STORM" Emits shock fields
+- "AEA_FIREBALL" Targeted
+- "AEA_ADRENALINE" Adrenaline rush
+- "AEA_MAP" Maps the area around you
+- "AEA_BLOOD" Shoots blood all over
+- "AEA_FATIGUE" Creates interdimensional fatigue
+- "AEA_ACIDBALL" Targeted acid
+- "AEA_PULSE" Destroys adjacent terrain
+- "AEA_HEAL" Heals minor damage
+- "AEA_CONFUSED" Confuses all monsters in view
+- "AEA_ENTRANCE" Chance to make nearby monsters friendly
+- "AEA_BUGS" Chance to summon friendly insects
+- "AEA_TELEPORT" Teleports you
+- "AEA_LIGHT" Temporary light source
+- "AEA_GROWTH" Grow plants, a la triffid queen
+- "AEA_HURTALL" Hurts all monsters!
+- "AEA_RADIATION" Spew radioactive gas
+- "AEA_PAIN" Increases player pain
+- "AEA_MUTATE" Chance of mutation
+- "AEA_PARALYZE" You lose several turns
+- "AEA_FIRESTORM" Spreads minor fire all around you
+- "AEA_ATTENTION" Attention from sub-prime denizens
+- "AEA_TELEGLOW" Teleglow disease
+- "AEA_NOISE" Loud noise
+- "AEA_SCREAM" Noise & morale penalty
+- "AEA_DIM" Darkens the sky slowly
+- "AEA_FLASH" Flashbang
+- "AEA_VOMIT" User vomits
+- "AEA_SHADOWS" Summon shadow creatures
+
 ###SOFTWARE DATA
 Every item type can have software data, it does not have any behavior:
 ```
@@ -641,7 +752,7 @@ The contents of use_action fields can either be a string indicating a built-in f
 "use_action": {
     "type: : "auto_transform", // Like transform, but it transforms automatically when a condition is met.
     "when_underwater" : "The candle is extinguished.", // Message to display if the item goes underwater, also cause the item to transform when it goes underwater.
-   "non_interactive_message" " "You can not deactivate the lightstrip.",  // Message to display if the player tries to activate the item, also prevents activation by player from working.
+    "non_interactive_message" " "You can not deactivate the lightstrip.",  // Message to display if the player tries to activate the item, also prevents activation by player from working.
 },
 "use_action": {
     "type": "explosion", // An item that explodes when it runs out of charges.
@@ -672,19 +783,22 @@ The contents of use_action fields can either be a string indicating a built-in f
 "use_action" : {
     "type" : "consume_drug", // A drug the player can consume.
     "activation_message" : "You smoke your crack rocks.  Mother would be proud.", // Message, ayup.
-    "diseases" : { "high": 15 }, // A disease to inflict and its duration.
+    "effects" : { "high": 15 }, // Effects and their duration.
     "stat_adjustments": {"hunger" : -10}, // Adjustment to make to player stats.
     "fields_produced" : {"cracksmoke" : 2}, // Fields to produce, mostly used for smoke.
     "charges_needed" : { "fire" : 1 }, // Charges to use in the process of consuming the drug.
-    "tools_needed" : { "apparatus" : -1 } // Tool needed to use the drug.
+    "tools_needed" : { "apparatus" : -1 }, // Tool needed to use the drug.
+    "moves": 50 // Number of moves required in the process, default value is 100.
 },
 "use_action": {
-    "type": "place_monster", // place a turrent / manhack / whatever monster on the map
+    "type": "place_monster", // place a turret / manhack / whatever monster on the map
     "monster_id": "mon_manhack", // monster id, see monsters.json
     "difficulty": 4, // difficulty for programming it (manhacks have 4, turrets 6, ...)
     "hostile_msg": "It's hostile!", // (optional) message when programming the monster failed and it's hostile.
     "friendly_msg": "Good!", // (optional) message when the monster is programmed properly and it's friendly.
-    "place_randomly": true, // if true: places the monser randomly around the player, if false: let the player decide where to put it (default: false)
+    "place_randomly": true, // if true: places the monster randomly around the player, if false: let the player decide where to put it (default: false)
+    "skill1": "throw", // Id of a skill, higher skill level means more likely to place a friendly monster.
+    "skill2": "unarmed", // Another id, just like the skill1. Both entries are optional.
     "moves": 60 // how many move points the action takes.
 },
 "use_action": {
@@ -701,6 +815,96 @@ The contents of use_action fields can either be a string indicating a built-in f
 "use_action": {
     "type": "picklock", // picking a lock on a door
     "pick_quality": 3 // "quality" of the tool, higher values mean higher success chance, and using it takes less moves.
+},
+"use_action": {
+    "type": "firestarter", // Start a fire, like with a lighter.
+    "moves_cost": 15 // Number of moves it takes to start the fire.
+},
+"use_action": {
+    "type": "extended_firestarter", // Start a fire (like with magnifying glasses or a fire drill). This action can take many turns, not just some moves like firestarter, it can also be canceled (firestarter can't).
+    "need_sunlight": true // Whether the character needs to be in direct sunlight, e.g. to use magnifying glasses.
+},
+"use_action": {
+    "type": "salvage", // Try to salvage base materials from an item, e.g. cutting up cloth to get rags or leather.
+    "moves_per_part": 25, // Number of moves it takes (optional).
+    "material_whitelist": [ // List of material ids (not item ids!) that can be salvage from.
+        "cotton",           // The list here is the default list, used when there is no explicit martial list given.
+        "leather",          // If the item (that is to be cut up) has any material not in the list, it can not be cut up.
+        "fur",
+        "nomex",
+        "kevlar",
+        "plastic",
+        "wood",
+        "wool"
+    ]
+},
+"use_action": {
+    "type": "inscribe", // Inscribe a message on an item or on the ground.
+    "on_items": true, // Whether the item can inscribe on an item.
+    "on_terrain": false, // Whether the item can inscribe on the ground.
+    "material_restricted": true, // Whether the item can only inscribe on certain item materials. Not used when inscribing on the ground.
+    "material_whitelist": [ // List of material ids (not item ids!) that can be inscribed on.
+        "wood",             // Only used when inscribing on an item, and only when material_restricted is true.
+        "plastic",          // The list here is the default that is used when no explicit list is given.
+        "glass",
+        "chitin",
+        "iron",
+        "steel",
+        "silver"
+    ]
+},
+"use_action": {
+    "type": "cauterize", // Cauterize the character.
+    "flame": true // If true, the character needs 4 charges of fire (e.g. from a lighter) to do this action, if false, the charges of the item itself are used.
+},
+"use_action": {
+    "type": "enzlave" // Make a zlave.
+},
+"use_action": {
+    "type": "fireweapon_off", // Activate a fire based weapon.
+    "target_id": "firemachete_on", // The item type to transform this item into.
+    "success_message": "Your No. 9 glows!", // A message that is shows if the action succeeds.
+    "failure_message": "", // A message that is shown if the action fails, for whatever reason. (Optional, if not given, no message will be printed.)
+    "lacks_fuel_message": "Out of fuel", // Message that is shown if the item has no charges.
+    "noise": 0, // The noise it makes to active the item, Optional, 0 means no sound at all.
+    "moves": 0, // The number of moves it takes the character to even try this action (independent of the result).
+    "success_chance": 0 // How likely it is to succeed the action. Default is to always succeed. Try numbers in the range of 0-10.
+},
+"use_action": {
+    "type": "fireweapon_on", // Function for active (burning) fire based weapons.
+    "noise_chance": 1, // The chance (one in X) that the item will make a noise, rolled on each turn.
+    "noise": 0, // The sound volume it makes, if it makes a noise at all. If 0, no sound is made, but the noise message is still printed.
+    "noise_message": "Your No. 9 hisses.", // The message / sound description (if noise is > 0), that appears when the item makes a sound.
+    "voluntary_extinguish_message": "Your No. 9 goes dark.", // Message that appears when the item is turned of by player.
+    "charges_extinguish_message": "Out of ammo!", // Message that appears when the item runs out of charges.
+    "water_extinguish_message": "Your No. 9 hisses in the water and goes out.", // Message that appears if the character walks into water and the fire of the item is extinguished.
+    "auto_extinguish_chance": 0, // If > 0, this is the (one in X) chance that the item goes out on its own.
+    "auto_extinguish_message": "Your No. 9 cuts out!" // Message that appears if the item goes out on its own (only required if auto_extinguish_chance is > 0).
+},
+"use_action": {
+    "type": "musical_instrument", // The character plays an instrument (this item) while walking around.
+    "speed_penalty": 10, // This is subtracted from the characters speed.
+    "volume": 12, // Volume of the sound of the instrument.
+    "fun": -5, // Together with fun_bonus, this defines how much morale the character gets from playing the instrument. They get `fun + fun_bonus * <character-perception>` morale points out of it. Both values and the result may be negative.
+    "fun_bonus": 2,
+    "description_frequency": 20, // Once every Nth turn, a randomly chosen description (from the that array) is displayed.
+    "descriptions": [
+        "You play a little tune on your flute.",
+        "You play a beautiful piece on your flute.",
+        "You play a piece on your flute that sounds harmonious with nature."
+    ]
+},
+"use_action": {
+    "type": "holster", // Holster or draw a weapon
+    "holster_prompt": "Holster item", // Prompt to use when selecting an item
+    "holster_msg": "You holster your %s", // Message to show when holstering an item
+    "max_volume": 6, // Maximum volume of each item that can be holstered
+    "min_volume": 3,  // Minimum volume of each item that can be holstered or 1/3 max_volume if unspecified
+    "max_weight": 2000, // Maximum weight of each item. If unspecified no weight limit is imposed
+    "multi": 1, // Total number of items that holster can contain
+    "draw_speed": 10, // Base move cost per unit volume when wielding the contained item
+    "skills": ["pistol", "shotgun"], // Guns using any of these skills can be holstered
+    "flags": ["SHEATH_KNIFE", "SHEATH_SWORD"] // Items with any of these flags set can be holstered
 },
 "use_action": {
     "type": "reveal_map", // reveal specific terrains on the overmap
@@ -748,34 +952,194 @@ The format also support snippet ids like above.
 
 #json jsons
 
-###FURNITURE
-```C++
-"type": "furniture",      //Must always be 'furniture'
-"name": "toilet",         //Displayed name of the furniture
-"symbol": "&",            //Symbol displayed
-"color": "white",         //Glyph color. Alternately use 'bgcolor' to use a solid background color.
-                          //You must use EXACTLY ONE of 'color' or 'bgcolor'.
-"move_cost_mod": 2,       //Movement cost modifier (-10 = impassable, 0 = no change)
-"required_str": 18,       //Strength required to move past the terrain easily
-"flags": ["TRANSPARENT", "BASHABLE", "FLAMMABLE_HARD"],    //Furniture flags
-"crafting_pseudo_item": "anvil", // id of an item (tool) that will be available for crafting when this furniture is range
-"examine_action": "toilet" //(OPTIONAL) Function called when examined, see iexamine.cpp.
-                           //If omitted, defaults to iexamine::none.
+### FURNITURE
+
+```JSON
+{
+    "type": "furniture",
+    "id": "f_toilet",
+    "name": "toilet",
+    "symbol": "&",
+    "color": "white",
+    "move_cost_mod": 2,
+    "required_str": 18,
+    "flags": ["TRANSPARENT", "BASHABLE", "FLAMMABLE_HARD"],
+    "crafting_pseudo_item": "anvil",
+    "examine_action": "toilet",
+    "close": "f_foo_closed",
+    "open": "f_foo_open",
+    "bash": "TODO",
+    "deconstruct": "TODO",
+    "max_volume": 4000
+}
 ```
 
+#### "type"
+Fixed string, must be "furniture" to identify the JSON object as such.
+
+#### "id", "name", "symbol", "color", "bgcolor", "max_volume", "open", "close", "bash", "deconstruct", "examine_action", "flags"
+Same as for terrain, see below in the chapter "Common to furniture and terrain".
+
+#### "move_cost_mod"
+Movement cost modifier (-10 = impassable, 0 = no change). This is added to the movecost of the underlying terrain.
+
+#### "required_str"
+Strength required to move the furniture around. Negative values indicate an unmovable furniture.
+
+#### "crafting_pseudo_item"
+(Optional) Id of an item (tool) that will be available for crafting when this furniture is range (the furniture acts as an item of that type).
+
 ###TERRAIN
-```C++
-"type": "terrain",         //Must always be 'terrain'
-"name": "spiked pit",      //Displayed name of the terrain
-"symbol": "0",             //Symbol used
-"color": "ltred",          //Color of the symbol
-"move_cost": 10,           //Move cost to move through. 2 = normal speed, 0 = impassable
-"trap": "spike_pit",       //(OPTIONAL) trap_id of the trap type.
-                           //If omitted, defaults to tr_null.
-"flags": ["TRANSPARENT", "DIGGABLE"],   //Terrain flags
-"examine_action": "pit"    //(OPTIONAL) Function called when examined, see iexamine.cpp.
-                           //If omitted, defaults to iexamine::none.
+
+```JSON
+{
+    "type": "terrain",
+    "id": "t_spiked_pit",
+    "name": "spiked pit",
+    "symbol": "0",
+    "color": "ltred",
+    "move_cost": 10,
+    "trap": "spike_pit",
+    "max_volume": 4000,
+    "flags": ["TRANSPARENT", "DIGGABLE"],
+    "close": "t_foo_closed",
+    "open": "t_foo_open",
+    "bash": "TODO",
+    "deconstruct": "TODO",
+    "harvestable": "blueberries",
+    "transforms_into": "t_tree_harvested",
+    "harvest_season": "WINTER",
+    "roof": "t_roof",
+    "examine_action": "pit"
+}
 ```
+
+#### "type"
+Fixed string, must be "terrain" to identify the JSON object as such.
+
+#### "id", "name", "symbol", "color", "bgcolor", "max_volume", "open", "close", "bash", "deconstruct", "examine_action", "flags"
+Same as for furniture, see below in the chapter "Common to furniture and terrain".
+
+#### "move_cost"
+Move cost to move through. A value of 0 means it's impassable (e.g. wall). You should not use negative values. The positive value is multiple of 50 move points, e.g. value 2 means the player uses 2*50 = 100 move points when moving across the terrain.
+
+#### "trap"
+(Optional) Id of the build-in trap of that terrain. For example the terrain "t_pit" has the build in trap "tr_pit". Every tile in the game that has the terrain "t_pit" has therefor also an implicit trap "tr_pit" on it. Both are inseparable (the player can not deactivate the build-in trap, but changing the terrain will also deactivate the built-in trap).
+
+A built-in trap prevents adding any other trap explicitly (by the player nor through mapgen).
+
+#### "harvestable"
+(Optional) If defined, the terrain is harvestable. This entry defines the item type of the harvested fruits (or similar). To make this work, you also have to set one of the "harvest_*" examine_action functions.
+
+#### "transforms_into"
+(Optional) Used for various transformation of the terrain. If defined, it must be a valid terrain id. Used for example:
+- When harvesting fruits (to change into the harvested form of the terrain).
+- In combination with the "HARVESTED" flag and "harvest_season" to change the harvested terrain back into a terrain with fruits.
+
+#### "harvest_season"
+(Optional) On of "SUMMER", "AUTUMN", "WINTER", "SPRING", used in combination with the "HARVESTED" flag to revert the terrain back into a terrain that can be harvested.
+
+#### "roof"
+(Optional) The terrain of the terrain on top of this (the roof).
+
+### Common to furniture and terrain
+Some values can/must be set for terrain and furniture. They have the same meaning in each case.
+
+#### "id"
+Id of the object, this should be unique among all object of that type (all terrain or all furniture types). By convention (but technically not needed), the id should have the "f_" prefix for furniture and the "t_" prefix for terrain. This is not translated. It must not be changed later as that would break save compatibility.
+
+#### "name"
+Displayed name of the object. This will be translated.
+
+#### "flags"
+(Optional) Various additional flags, see "doc/JSON_FLAGS.md".
+
+#### "symbol"
+ASCII symbol of the object as it appears in the game. The symbol string must be exactly one character long. This can also be an array of 4 strings, which define the symbol during the different seasons. The first entry defines the symbol during spring. If it's not an array, the same symbol is used all year round.
+
+#### "color" or "bgcolor"
+Color of the object as it appears in the game. "color" defines the the foreground color (no background color), "bgcolor" defines a solid background color. You must use EXACTLY ONE of "color" or "bgcolor". As with the "symbol" value, this can be an array with 4 entries, each entry being the color during the different seasons.
+
+#### "max_volume"
+(Optional) Maximal volume that can be used to store items here.
+
+#### "examine_action"
+(Optional) The C++ function that is called when the object is examined. See "src/iexamine.h".
+
+#### "close" and "open"
+(Optional) The value should be a terrain id (inside a terrain entry) or a furniture id (in a furniture entry). If either is defined, the player can open / close the object. Opening / closing will change the object at the affected tile to the given one. For example one could have object "safe_c", which "open"s to "safe_o" and "safe_o" in turn "close"s to "safe_c". Here "safe_c" and "safe_o" are two different terrain (or furniture) types that have different properties.
+
+#### "bash"
+(Optional) Defines whether the object can be bashed and if so, what happens. See "map_bash_info".
+
+#### "deconstruct"
+(Optional) Defines whether the object can be deconstructed and if so, what the results shall be. See "map_deconstruct_info".
+
+### map_bash_info
+Defines the various things that happen when the player or something else bashes terrain or furniture.
+
+```JSON
+{
+    "str_min": 80,
+    "str_max": 180,
+    "str_min_blocked": 15,
+    "str_max_blocked": 100,
+    "str_min_supported": 15,
+    "str_max_supported": 100,
+    "sound": "crunch!",
+    "sound_vol": 2,
+    "sound_fail": "whack!",
+    "sound_fail_vol": 2,
+    "ter_set": "t_dirt",
+    "furn_set": "f_rubble",
+    "explosive": 1,
+    "collapse_radius": 2,
+    "destroy_only": true,
+    "bash_below": true,
+    "tent_centers": ["f_groundsheet", "f_fema_groundsheet", "f_skin_groundsheet"],
+    "items": "bashed_item_result_group"
+}
+```
+
+#### "str_min", "str_max", "str_min_blocked", "str_max_blocked", "str_min_supported", "str_max_supported"
+TODO
+
+#### "sound", "sound_fail", "sound_vol", "sound_fail_vol"
+(Optional) Sound and volume of the sound that appears upon destroying the bashed object or upon unsuccessfully bashing it (failing). The sound strings are translated (and displayed to the player).
+
+#### "furn_set", "ter_set"
+The terrain / furniture that will be set when the original is destroyed. This is mandatory for bash entries in terrain, but optional for entries in furniture (it defaults to no furniture).
+
+#### "explosive"
+(Optional) If greater than 0, destroying the object causes an explosion with this strength (see `game::explosion`).
+
+#### "destroy_only"
+TODO
+
+#### "bash_below"
+TODO
+
+#### "tent_centers", "collapse_radius"
+(Optional) For furniture that is part of tents, this defines the id of the center part, which will be destroyed as well when other parts of the tent get bashed. The center is searched for in the given "collapse_radius" radius, it should match the size of the tent.
+
+#### "items"
+(Optional) An item group (inline) or an id of an item group, see doc/ITEM_SPAWN.md. The default subtype is "collection". Upon successful bashing, items from that group will be spawned.
+
+### map_deconstruct_info
+
+```JSON
+{
+    "furn_set": "f_safe",
+    "ter_set": "t_dirt",
+    "items": "deconstructed_item_result_group"
+}
+```
+
+#### "furn_set", "ter_set"
+The terrain / furniture that will be set after the original has been deconstructed. "furn_set" is optional (it defaults to no furniture), "ter_set" is only used upon "deconstruct" entries in terrain and is mandatory there.
+
+#### "items"
+(Optional) An item group (inline) or an id of an item group, see doc/ITEM_SPAWN.md. The default subtype is "collection". Upon deconstruction the object, items from that group will be spawned.
 
 ###SCENARIO
 

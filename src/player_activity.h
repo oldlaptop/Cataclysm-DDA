@@ -38,12 +38,14 @@ enum activity_type : int {    // expanded this enum for readability
     ACT_ADV_INVENTORY,
     ACT_ARMOR_LAYERS,
     ACT_START_FIRE,
+    ACT_OPEN_GATE,
     ACT_FILL_LIQUID,
     ACT_HOTWIRE_CAR,
     ACT_AIM,
     ACT_ATM,
     ACT_START_ENGINES,
     ACT_OXYTORCH,
+    ACT_CRACKING,
     ACT_WAIT_NPC,
     NUM_ACTIVITIES
 };
@@ -79,12 +81,12 @@ class player_activity : public JsonSerializer, public JsonDeserializer
          */
         bool auto_resume;
 
-        player_activity(activity_type t = ACT_NULL, int turns = 0, int Index = -1, int pos = INT_MIN,
-                        std::string name_in = "");
-        player_activity(player_activity &&) = default;
-        player_activity(const player_activity &) = default;
-        player_activity &operator=(player_activity && ) = default;
-        player_activity &operator=(const player_activity &) = default;
+        player_activity( activity_type t = ACT_NULL, int turns = 0, int Index = -1, int pos = INT_MIN,
+                         std::string name_in = "" );
+        player_activity( player_activity && ) = default;
+        player_activity( const player_activity & ) = default;
+        player_activity &operator=( player_activity && ) = default;
+        player_activity &operator=( const player_activity & ) = default;
 
         // Question to ask when the activity is to be stoped,
         // e.g. " Stop doing something?", already translated.
@@ -94,8 +96,14 @@ class player_activity : public JsonSerializer, public JsonDeserializer
          * the ACTION_PAUSE key (see game::handle_key_blocking_activity)
          */
         bool is_abortable() const;
-        int get_value(size_t index, int def = 0) const;
-        std::string get_str_value(size_t index, const std::string def = "") const;
+        /**
+         * If this returns true, the activity does not finish. This is
+         * the type of activities that use UI trickery, but must be cancelled
+         * manually!
+         */
+        bool never_completes() const;
+        int get_value( size_t index, int def = 0 ) const;
+        std::string get_str_value( size_t index, const std::string def = "" ) const;
         /**
          * If this returns true, the action can be continued without
          * starting from scratch again (see player::backlog). This is only
@@ -105,9 +113,9 @@ class player_activity : public JsonSerializer, public JsonDeserializer
         bool is_suspendable() const;
 
         using JsonSerializer::serialize;
-        void serialize(JsonOut &jsout) const override;
+        void serialize( JsonOut &jsout ) const override;
         using JsonDeserializer::deserialize;
-        void deserialize(JsonIn &jsin) override;
+        void deserialize( JsonIn &jsin ) override;
 
         /**
          * Performs the activity for a single turn. If the activity is complete

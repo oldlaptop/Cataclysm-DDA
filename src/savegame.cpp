@@ -66,6 +66,8 @@ void game::serialize(std::ofstream & fout) {
         // basic game state information.
         json.member("turn", (int)calendar::turn);
         json.member("calendar_start", (int)calendar::start);
+        json.member("initial_season", (int)calendar::initial_season);
+        json.member("eternal_season", calendar::eternal_season);
         json.member( "last_target", (int)last_target );
         json.member( "run_mode", (int)safe_mode );
         json.member( "mostseen", mostseen );
@@ -109,7 +111,7 @@ void game::serialize(std::ofstream & fout) {
         json.member( "kills" );
         json.start_object();
         for( auto &elem : kills ) {
-            json.member( elem.first, elem.second );
+            json.member( elem.first.str(), elem.second );
         }
         json.end_object();
 
@@ -175,6 +177,8 @@ void game::unserialize(std::ifstream & fin)
 
         data.read("turn",tmpturn);
         data.read("calendar_start",tmpcalstart);
+        calendar::initial_season = (season_type)data.get_int("initial_season",(int)SPRING);
+        calendar::eternal_season = data.get_bool("eternal_season", false);
         data.read("last_target",tmptar);
         data.read("run_mode", tmprun);
         data.read("mostseen", mostseen);
@@ -236,13 +240,13 @@ void game::unserialize(std::ifstream & fin)
         JsonObject odata = data.get_object("kills");
         std::set<std::string> members = odata.get_member_names();
         for( const auto &member : members ) {
-            kills[member] = odata.get_int( member );
+            kills[mtype_id( member )] = odata.get_int( member );
         }
 
         data.read("player", u);
         Messages::deserialize( data );
 
-    } catch (std::string jsonerr) {
+    } catch( const JsonError &jsonerr ) {
         debugmsg("Bad save json\n%s", jsonerr.c_str() );
         return;
     }
@@ -276,16 +280,17 @@ void game::load_weather(std::ifstream & fin) {
         int seed(0);
         std::stringstream liness(line);
         liness >> label >> seed;
-        weatherGen->set_seed( seed );
+        weather_gen->set_seed( seed );
     }
 }
 
 void game::save_weather(std::ofstream &fout) {
     fout << "# version " << savegame_version << std::endl;
     fout << "lightning: " << (lightning_active ? "1" : "0") << std::endl;
-    fout << "seed: " << weatherGen->get_seed();
+    fout << "seed: " << weather_gen->get_seed();
 }
-///// overmap
+
+// throws std::exception
 void overmap::unserialize( std::ifstream &fin ) {
 
     if ( fin.peek() == '#' ) {
@@ -476,6 +481,7 @@ static void unserialize_array_from_compacted_sequence( JsonIn &jsin, bool (&arra
     }
 }
 
+// throws std::exception
 void overmap::unserialize_view(std::ifstream &fin)
 {
     // Private/per-character view of the overmap.
@@ -744,6 +750,13 @@ void mongroup::serialize(JsonOut &json) const
     json.member("horde", horde);
     json.member("target", target);
     json.member("interest", interest);
+    json.member("horde_behaviour", horde_behaviour);
+    json.member("monsters");
+    json.start_array();
+    for( auto &i : monsters ) {
+        i.serialize(json);
+    }
+    json.end_array();
     json.end_object();
 }
 
@@ -770,6 +783,15 @@ void mongroup::deserialize(JsonIn &json)
             target.deserialize(json);
         } else if( name == "interest" ) {
             interest = json.get_int();
+        } else if( name == "horde_behaviour" ) {
+            horde_behaviour = json.get_string();
+        } else if( name == "monsters" ) {
+            json.start_array();
+            while( !json.end_array() ) {
+                monster new_monster;
+                new_monster.deserialize( json );
+                monsters.push_back( new_monster );
+            }
         }
     }
 }
@@ -823,7 +845,7 @@ void game::unserialize_master(std::ifstream &fin) {
                 jsin.skip_value();
             }
         }
-    } catch (std::string e) {
+    } catch( const JsonError &e ) {
         debugmsg("error loading master.gsav: %s", e.c_str());
     }
 }
@@ -858,7 +880,7 @@ void game::serialize_master(std::ofstream &fout) {
         json.end_array();
 
         json.end_object();
-    } catch (std::string e) {
+    } catch( const JsonError &e ) {
         debugmsg("error saving to master.gsav: %s", e.c_str());
     }
 }

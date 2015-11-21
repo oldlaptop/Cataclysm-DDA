@@ -20,7 +20,7 @@
 
 std::string trim_to(const std::string &text, size_t length)
 {
-    const size_t width = utf8_width(text.c_str());
+    const size_t width = utf8_width(text);
     if(width <= length) {
         return text;
     }
@@ -362,7 +362,7 @@ void inventory_selector::print_right_column() const
             item_name = string_format("# %s {%d}", item_name.c_str(), dit->second);
         }
         const char invlet = invlet_or_space(u.weapon);
-        trim_and_print(w_inv, drp_line, right_column_width - 2, right_column_offset, c_ltblue, "%c %s", invlet, item_name.c_str());
+        trim_and_print(w_inv, drp_line, right_column_offset, right_column_width - 4, c_ltblue, "%c %s", invlet, item_name.c_str());
         drp_line++;
     }
     auto iter = u.worn.begin();
@@ -417,7 +417,7 @@ void inventory_selector::display(bool show_worn) const
         msg_str = _("Item selection; [TAB] switches mode, arrows select.");
         msg_color = h_white;
     }
-    mvwprintz(w_inv, items_per_page + 4, FULL_SCREEN_WIDTH - utf8_width(msg_str.c_str()),
+    mvwprintz(w_inv, items_per_page + 4, FULL_SCREEN_WIDTH - utf8_width(msg_str),
               msg_color, msg_str.c_str());
     print_left_column();
     if(show_worn) {
@@ -780,7 +780,7 @@ int game::display_slice(indexed_invslice const &slice, const std::string &title,
         inv_s.display(show_worn);
         const std::string action = inv_s.ctxt.handle_input();
         const long ch = inv_s.ctxt.get_raw_input().get_first_input();
-        const int item_pos = g->u.invlet_to_position(static_cast<char>(ch));
+        const int item_pos = g->u.invlet_to_position( ch );
         if (item_pos != INT_MIN) {
             return item_pos;
         } else if (inv_s.handle_movement(action)) {
@@ -896,10 +896,11 @@ item_location game::inv_map_splice(
     indexed_invslice ground_items_slice;
     indexed_invslice veh_items_slice;
 
-    pseudo_inv_to_slice( m.i_at( g->u.pos() ), ground_filter,
-                         ground_items, ground_items_slice,
-                         ground_selectables, cur_invlet );
-
+    if( !m.has_flag( "SEALED", g->u.pos() ) ) {
+        pseudo_inv_to_slice( m.i_at( g->u.pos() ), ground_filter,
+                             ground_items, ground_items_slice,
+                             ground_selectables, cur_invlet );
+    }
 
     int part = -1;
     vehicle *veh = m.veh_at( g->u.pos(), part );
@@ -941,7 +942,7 @@ item_location game::inv_map_splice(
         inv_s.display();
         const std::string action = inv_s.ctxt.handle_input();
         const long ch = inv_s.ctxt.get_raw_input().get_first_input();
-        const int item_pos = g->u.invlet_to_position( static_cast<char>( ch ) );
+        const int item_pos = g->u.invlet_to_position( ch );
 
         if( item_pos != INT_MIN ) {
             inv_s.set_to_drop(item_pos, 0);
@@ -1059,7 +1060,7 @@ std::list<std::pair<int, int>> game::multidrop()
         inv_s.display();
         const std::string action = inv_s.ctxt.handle_input();
         const long ch = inv_s.ctxt.get_raw_input().get_first_input();
-        const int item_pos = g->u.invlet_to_position(static_cast<char>(ch));
+        const int item_pos = g->u.invlet_to_position( ch );
         if (ch >= '0' && ch <= '9') {
             count = std::max( 0, count * 10 + ((char)ch - '0') );
         } else if (item_pos != INT_MIN) {
@@ -1106,28 +1107,29 @@ void game::compare( const tripoint &offset )
 {
     const tripoint examp = u.pos3() + offset;
 
-    auto here = m.i_at( examp );
-    typedef std::vector< std::list<item> > pseudo_inventory;
     pseudo_inventory grounditems;
     indexed_invslice grounditems_slice;
-    //Filter out items with the same name (keep only one of them)
-    std::set<std::string> dups;
-    for (size_t i = 0; i < here.size(); i++) {
-        if (dups.count(here[i].tname()) == 0) {
-            grounditems.push_back(std::list<item>(1, here[i]));
+    if( !m.has_flag( "SEALED", g->u.pos() ) ) {
+        auto here = m.i_at( examp );
+        //Filter out items with the same name (keep only one of them)
+        std::set<std::string> dups;
+        for (size_t i = 0; i < here.size(); i++) {
+            if (dups.count(here[i].tname()) == 0) {
+                grounditems.push_back(std::list<item>(1, here[i]));
 
-            //Only the first 10 items get a invlet
-            if ( grounditems.size() <= 10 ) {
-                // invlet: '0' ... '9'
-                grounditems.back().front().invlet = '0' + grounditems.size() - 1;
+                //Only the first 10 items get a invlet
+                if ( grounditems.size() <= 10 ) {
+                    // invlet: '0' ... '9'
+                    grounditems.back().front().invlet = '0' + grounditems.size() - 1;
+                }
+
+                dups.insert(here[i].tname());
             }
-
-            dups.insert(here[i].tname());
         }
-    }
-    for (size_t a = 0; a < grounditems.size(); a++) {
-        // avoid INT_MIN, as it can be confused with "no item at all"
-        grounditems_slice.push_back(indexed_invslice::value_type(&grounditems[a], INT_MIN + a + 1));
+        for (size_t a = 0; a < grounditems.size(); a++) {
+            // avoid INT_MIN, as it can be confused with "no item at all"
+            grounditems_slice.push_back(indexed_invslice::value_type(&grounditems[a], INT_MIN + a + 1));
+        }
     }
     static const item_category category_on_ground(
         "GROUND:",
@@ -1149,7 +1151,7 @@ void game::compare( const tripoint &offset )
         inv_s.display();
         const std::string action = inv_s.ctxt.handle_input();
         const long ch = inv_s.ctxt.get_raw_input().get_first_input();
-        const int item_pos = g->u.invlet_to_position(static_cast<char>(ch));
+        const int item_pos = g->u.invlet_to_position( ch );
         if (item_pos != INT_MIN) {
             inv_s.set_to_drop(item_pos, 0);
         } else if (ch >= '0' && ch <= '9' && (size_t) (ch - '0') < grounditems_slice.size()) {
@@ -1164,15 +1166,31 @@ void game::compare( const tripoint &offset )
         }
         if (inv_s.second_item != NULL) {
             std::vector<iteminfo> vItemLastCh, vItemCh;
-            std::string sItemLastCh, sItemCh;
+            std::string sItemLastCh, sItemCh, sItemTn;
             inv_s.first_item->info(true, vItemCh);
             sItemCh = inv_s.first_item->tname();
+            sItemTn = inv_s.first_item->type_name();
             inv_s.second_item->info(true, vItemLastCh);
             sItemLastCh = inv_s.second_item->tname();
-            draw_item_info(0, (TERMX - VIEW_OFFSET_X * 2) / 2, 0, TERMY - VIEW_OFFSET_Y * 2,
-                           sItemLastCh, vItemLastCh, vItemCh, -1, true); //without getch()
-            draw_item_info((TERMX - VIEW_OFFSET_X * 2) / 2, (TERMX - VIEW_OFFSET_X * 2) / 2,
-                           0, TERMY - VIEW_OFFSET_Y * 2, sItemCh, vItemCh, vItemLastCh);
+
+            int iScrollPos = 0;
+            int iScrollPosLast = 0;
+            int ch = (int)' ';
+            do {
+                draw_item_info(0, (TERMX - VIEW_OFFSET_X * 2) / 2, 0, TERMY - VIEW_OFFSET_Y * 2,
+                               sItemLastCh, sItemTn, vItemLastCh, vItemCh, iScrollPosLast, true); //without getch()
+                ch = draw_item_info((TERMX - VIEW_OFFSET_X * 2) / 2, (TERMX - VIEW_OFFSET_X * 2) / 2,
+                                    0, TERMY - VIEW_OFFSET_Y * 2, sItemCh, sItemTn, vItemCh, vItemLastCh, iScrollPos);
+
+                if ( ch == KEY_PPAGE ) {
+                    iScrollPos--;
+                    iScrollPosLast--;
+                } else if ( ch == KEY_NPAGE ) {
+                    iScrollPos++;
+                    iScrollPosLast++;
+                }
+            } while (ch == KEY_PPAGE || ch == KEY_NPAGE);
+
             inv_s.dropping = prev_droppings;
             inv_s.second_item = NULL;
         } else {

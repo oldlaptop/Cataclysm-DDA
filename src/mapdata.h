@@ -15,6 +15,7 @@
 #include <list>
 #include <map>
 #include <string>
+#include <array>
 
 struct itype;
 struct trap;
@@ -31,38 +32,31 @@ using furn_id = int_id<furn_t>;
 #define mfb(n) static_cast <unsigned long> (1 << (n))
 #endif
 
-struct map_bash_item_drop {
-    std::string itemtype; // item id
-    int amount;           // number dropped
-    int minamount;        // optional: if >= amount drop is random # between minamount and amount
-    int chance;           //
-    map_bash_item_drop(std::string str, int i) : itemtype(str), amount(i), minamount(-1), chance(-1) {};
-    map_bash_item_drop(std::string str, int i1, int i2) : itemtype(str), amount(i1), minamount(i2), chance(-1) {};
-};
 struct map_bash_info {
     int str_min;            // min str(*) required to bash
-    int str_max;            // max str required: bash succeeds if str >= random # between str_min_roll & str_max_roll
+    int str_max;            // max str required: bash succeeds if str >= random # between str_min & str_max
     int str_min_blocked;    // same as above; alternate values for has_adjacent_furniture(...) == true
     int str_max_blocked;
     int str_min_supported;  // Alternative values for floor supported by something from below
     int str_max_supported;
-    int str_min_roll;       // lower bound of success check; defaults to str_min
-    int str_max_roll;       // upper bound of success check; defaults to str_max
     int explosive;          // Explosion on destruction
     int sound_vol;          // sound volume of breaking terrain/furniture
     int sound_fail_vol;     // sound volume on fail
+    int collapse_radius;    // Radius of the tent supported by this tile
     bool destroy_only;      // Only used for destroying, not normally bashable
     bool bash_below;        // This terrain is the roof of the tile below it, try to destroy that too
-    std::vector<map_bash_item_drop> items; // list of items: map_bash_item_drop
+    std::string drop_group; // item group of items that are dropped when the object is bashed
     std::string sound;      // sound made on success ('You hear a "smash!"')
     std::string sound_fail; // sound  made on fail
     std::string ter_set;    // terrain to set (REQUIRED for terrain))
     std::string furn_set;   // furniture to set (only used by furniture, not terrain)
+    // ids used for the special handling of tents (have to be ids of furniture)
+    std::vector<std::string> tent_centers;
     map_bash_info() : str_min(-1), str_max(-1), str_min_blocked(-1), str_max_blocked(-1),
                       str_min_supported(-1), str_max_supported(-1),
-                      str_min_roll(-1), str_max_roll(-1), explosive(0), sound_vol(-1), sound_fail_vol(-1),
-                      destroy_only(false), bash_below(false),
-                      sound(""), sound_fail(""), ter_set(""), furn_set("") {};
+                      explosive(0), sound_vol(-1), sound_fail_vol(-1),
+                      collapse_radius(1), destroy_only(false), bash_below(false),
+                      drop_group("EMPTY_GROUP"), sound(""), sound_fail(""), ter_set(""), furn_set("") {};
     bool load(JsonObject &jsobj, std::string member, bool is_furniture);
 };
 struct map_deconstruct_info {
@@ -71,10 +65,10 @@ struct map_deconstruct_info {
     // This terrain provided a roof, we need to tear it down now
     bool deconstruct_above;
     // items you get when deconstructing.
-    std::vector<map_bash_item_drop> items;
+    std::string drop_group;
     std::string ter_set;    // terrain to set (REQUIRED for terrain))
     std::string furn_set;    // furniture to set (only used by furniture, not terrain)
-    map_deconstruct_info() : can_do(false), deconstruct_above(false), items(), ter_set(), furn_set() { }
+    map_deconstruct_info() : can_do(false), deconstruct_above(false), drop_group(), ter_set(), furn_set() { }
     bool load(JsonObject &jsobj, std::string member, bool is_furniture);
 };
 
@@ -101,6 +95,7 @@ struct map_deconstruct_info {
  * CONSOLE - Used as a computer
  * ALARMED - Sets off an alarm if smashed
  * SUPPORTS_ROOF - Used as a boundary for roof construction
+ * MINEABLE - Able to broken with the jackhammer/pickaxe, but does not necessarily support a roof
  * INDOORS - Has roof over it; blocks rain, sunlight, etc.
  * COLLAPSES - Has a roof that can collapse
  * FLAMMABLE_ASH - Burns to ash rather than rubble.
@@ -111,6 +106,7 @@ struct map_deconstruct_info {
  * LIQUIDCONT - Furniture that contains liquid, allows for contents to be accessed in some checks even if SEALED
  * OPENCLOSE_INSIDE - If it's a door (with an 'open' or 'close' field), it can only be opened or closed if you're inside.
  * PERMEABLE - Allows gases to flow through unimpeded.
+ * RAMP - Higher z-levels can be accessed from this tile
  *
  * Currently only used for Fungal conversions
  * WALL - This terrain is an upright obstacle
@@ -142,6 +138,7 @@ enum ter_bitflags : int {
     TFLAG_REDUCE_SCENT,
     TFLAG_SWIMMABLE,
     TFLAG_SUPPORTS_ROOF,
+    TFLAG_MINEABLE,
     TFLAG_NOITEM,
     TFLAG_SEALED,
     TFLAG_ALLOW_FIELD_EFFECT,
@@ -169,6 +166,8 @@ enum ter_bitflags : int {
     TFLAG_GOES_DOWN,
     TFLAG_GOES_UP,
     TFLAG_NO_FLOOR,
+    TFLAG_SEEN_FROM_ABOVE,
+    TFLAG_RAMP,
 
     NUM_TERFLAGS
 };
@@ -187,17 +186,19 @@ private:
     std::bitset<NUM_TERFLAGS> bitflags; // bitfield of -certian- string flags which are heavily checked
 public:
 
+    enum { SEASONS_PER_YEAR = 4 };
     /*
     * The symbol drawn on the screen for the terrain. Please note that there are extensive rules
     * as to which possible object/field/entity in a single square gets drawn and that some symbols
     * are "reserved" such as * and % to do programmatic behavior.
     */
-    long sym;
+    std::array<long, SEASONS_PER_YEAR> symbol_;
 
     int movecost;   // The amount of movement points required to pass this terrain by default.
     int max_volume; // Maximal volume of items that can be stored in/on this furniture
 
-    nc_color color; //The color the sym will draw in on the GUI.
+    std::array<nc_color, SEASONS_PER_YEAR> color_; //The color the sym will draw in on the GUI.
+    void load_symbol( JsonObject &jo );
 
     iexamine_function examine; //What happens when the terrain is examined
 
@@ -212,6 +213,9 @@ public:
     }
 
     void set_flag( const std::string &flag );
+
+    long symbol() const;
+    nc_color color() const;
 };
 
 /*
@@ -346,13 +350,14 @@ extern ter_id t_null,
     t_recycler, t_window, t_window_taped, t_window_domestic, t_window_domestic_taped, t_window_open, t_curtains,
     t_window_alarm, t_window_alarm_taped, t_window_empty, t_window_frame, t_window_boarded, t_window_boarded_noglass, t_window_bars_alarm,
     t_window_stained_green, t_window_stained_red, t_window_stained_blue,
+    t_window_no_curtains, t_window_no_curtains_open, t_window_no_curtains_taped,
     t_rock, t_fault,
     t_paper,
     t_rock_wall, t_rock_wall_half,
     // Tree
     t_tree, t_tree_young, t_tree_apple, t_tree_apple_harvested, t_tree_pear, t_tree_pear_harvested,
     t_tree_cherry, t_tree_cherry_harvested, t_tree_peach, t_tree_peach_harvested, t_tree_apricot, t_tree_apricot_harvested,
-    t_tree_plum, t_tree_plum_harvested, t_tree_pine, t_tree_blackjack, t_tree_deadpine, t_underbrush, t_shrub, t_shrub_blueberry, t_shrub_strawberry, t_trunk,
+    t_tree_plum, t_tree_plum_harvested, t_tree_pine, t_tree_blackjack, t_tree_birch, t_tree_birch_harvested, t_tree_willow, t_tree_willow_harvested, t_tree_maple, t_tree_deadpine, t_tree_hickory, t_tree_hickory_dead, t_tree_hickory_harvested, t_underbrush, t_shrub, t_shrub_blueberry, t_shrub_strawberry, t_trunk,
     t_root_wall,
     t_wax, t_floor_wax,
     t_fence_v, t_fence_h, t_chainfence_v, t_chainfence_h, t_chainfence_posts,

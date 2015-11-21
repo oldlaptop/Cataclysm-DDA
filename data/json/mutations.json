@@ -115,8 +115,8 @@
         "type" : "mutation",
         "id" : "NIGHTVISION",
         "name" : "Night Vision",
-        "points" : 1,
-        "description" : "You possess natural night vision, and can see two squares instead of one in pitch blackness.  Activate to toggle NV-visible areas on or off.",
+        "points" : 2,
+        "description" : "You possess natural night vision, and can see further in the dark than most.  Activate to toggle NV-visible areas on or off.",
         "starting_trait" : true,
         "changes_to" : ["NIGHTVISION2"],
         "cancels": ["ELFA_NV", "ELFA_FNV", "FEL_NV", "URSINE_EYE"],
@@ -339,9 +339,10 @@
         "id" : "SELFAWARE",
         "name" : "Self-Aware",
         "points" : 1,
-        "description" : "You get to see your exact amount of HP remaining, instead of only having a vague idea of whether you're in good condition or not.",
+        "description" : "You get to see your exact amount of HP remaining and health, instead of only having a vague idea of whether you're in good condition or not.",
         "starting_trait" : true,
         "valid" : false,
+        "active" : true,
         "category" : ["MUTCAT_MEDICAL"]
     },{
         "type" : "mutation",
@@ -1502,7 +1503,7 @@
         "id" : "CF_HAIR",
         "name" : "Urticating Hairs",
         "points" : 3,
-        "description" : "Significant amounts of your hairs have loosened.  If somme creature tries to attack you, your assailant is quite likely to get fine, bristly chitin in an irritating spot; it doesn't carry your venom but it will be distracting.",
+        "description" : "Significant amounts of your hairs have loosened.  If some creature tries to attack you, your assailant is quite likely to get fine, bristly chitin in an irritating spot; it doesn't carry your venom but it will be distracting.",
         "prereqs" : ["CHITIN_FUR2", "CHITIN_FUR3"],
         "threshreq" : ["THRESH_SPIDER"],
         "category" : ["MUTCAT_SPIDER"]
@@ -1833,8 +1834,8 @@
         "type" : "mutation",
         "id" : "INFRESIST",
         "name" : "Infection Resistant",
-        "points" : 3,
-        "description" : "Your immune system is particularly good at resisting infections.",
+        "points" : 2,
+        "description" : "Your immune system is particularly good at resisting infections.  You have an increased chance for bad wounds and infections to heal on their own, and only suffer reduced penalties from them.",
         "starting_trait" : true,
         "changes_to" : ["INFIMMUNE"],
         "category" : ["MUTCAT_TROGLOBITE", "MUTCAT_RAT", "MUTCAT_MEDICAL"]
@@ -1842,7 +1843,7 @@
         "type" : "mutation",
         "id" : "INFIMMUNE",
         "name" : "Infection Immune",
-        "points" : 5,
+        "points" : 4,
         "description" : "Your bloodstream has developed antibiotic properties.  Your wounds will never become infected.",
         "prereqs" : ["DISRESISTANT"],
         "prereqs2" : ["INFRESIST"],
@@ -1978,7 +1979,7 @@
         "visibility" : 4,
         "ugliness" : 2,
         "mixed_effect" : true,
-        "description" : "You have grown large, curved, and wickedly sharp talons in place of your big toes.  Fortunately, they don't get in the way of your walking.  Unfortunately, they do prevent you from wearing footgear, which does cause some problems.",
+        "description" : "You have grown large, curved, and wickedly sharp talons in place of your big toes.  Fortunately, they don't get in the way of your walking.  Unfortunately, they do prevent you from wearing footgear.",
         "valid" : false,
         "cancels" : ["PADDED_FEET", "LEG_TENTACLES", "HOOVES", "ROOTS1", "ROOTS2", "ROOTS3"],
         "category" : ["MUTCAT_RAPTOR"]
@@ -2772,7 +2773,7 @@
         "visibility" : 1,
         "ugliness" : 1,
         "mixed_effect" : true,
-        "description" : "You have grown noticeably taller and broader.  Much of it is useful muscle mass (Strength +2), but you find it throws off your balance and you get in your own way (+1 Torso and Arm Encumbrance).",
+        "description" : "You have grown noticeably taller and broader.  Much of it is useful muscle mass (Strength +2), but you find it throws off your balance and you get in your own way (+10 torso and arm encumbrance).",
         "prereqs" : ["STR_UP", "STR_UP_2", "STR_UP_3", "STR_UP_4"],
         "changes_to": ["LARGE_OK", "HUGE"],
         "category" : ["MUTCAT_URSINE", "MUTCAT_CATTLE", "MUTCAT_LIZARD"],
@@ -3143,7 +3144,7 @@
         "points" : -2,
         "visibility" : 7,
         "ugliness" : 4,
-        "description" : "You have a flattened nose and thin slits for nostrils, giving you a lizard-like appearance.  This makes breathing slightly difficult and increases mouth encumbrance by 1.",
+        "description" : "You have a flattened nose and thin slits for nostrils, giving you a lizard-like appearance.  This makes breathing slightly difficult and increases mouth encumbrance by 10.",
         "category" : ["MUTCAT_LIZARD", "MUTCAT_TROGLOBITE", "MUTCAT_CEPHALOPOD", "MUTCAT_RAPTOR"]
     },{
         "type" : "mutation",
@@ -3601,7 +3602,7 @@
         "visibility" : 3,
         "ugliness" : 2,
         "mixed_effect" : true,
-        "description" : "Your hands have fused into quasi-paws.  Fine manipulation is a challenge: permanent hand encumbrance of 1, difficulty with delicate craftwork, and your gloves don't fit.  But they handle water better.",
+        "description" : "Your hands have fused into quasi-paws.  Fine manipulation is a challenge: permanent hand encumbrance of 10, difficulty with delicate craftwork, and your gloves don't fit.  But they handle water better.",
         "prereqs" : ["CLAWS", "CLAWS_RETRACT", "CLAWS_RAT"],
         "cancels" : ["TALONS", "ARM_TENTACLES", "ARM_TENTACLES_4", "ARM_TENTACLES_8"],
         "changes_to" : ["PAWS_LARGE"],
@@ -3614,7 +3615,7 @@
         "visibility" : 4,
         "ugliness" : 3,
         "mixed_effect" : true,
-        "description" : "Your paws are much larger now.  Manual dexterity is is difficult: permanent hand encumbrance of 2, serious problems crafting, and no gloves.  But you can swim more effectively.",
+        "description" : "Your paws are much larger now.  Manual dexterity is is difficult: permanent hand encumbrance of 20, serious problems crafting, and no gloves.  But you can swim more effectively.",
         "prereqs" : ["PAWS"],
         "cancels" : ["TALONS", "ARM_TENTACLES", "ARM_TENTACLES_4", "ARM_TENTACLES_8"],
         "category" : ["MUTCAT_BEAST", "MUTCAT_URSINE"]
@@ -4012,7 +4013,7 @@
         "description" : "You occasionally shout uncontrollably.",
         "changes_to" : ["SHOUT2"],
         "category" : ["MUTCAT_RAPTOR"],
-        "active"     :    true,
+        "active"     :    false,
         "cost"       :    3,
         "time"       :    0,
         "fatigue"    :    true,
@@ -4026,7 +4027,7 @@
         "prereqs" : ["SHOUT1"],
         "changes_to" : ["SHOUT3"],
         "category" : ["MUTCAT_BEAST"],
-        "active"     :    true,
+        "active"     :    false,
         "cost"       :    4,
         "time"       :    0,
         "fatigue"    :    true,
@@ -4039,7 +4040,7 @@
         "description" : "You frequently let out a piercing howl.",
         "prereqs" : ["SHOUT2"],
         "category" : ["MUTCAT_CHIMERA", "MUTCAT_LUPINE"],
-        "active"     :    true,
+        "active"     :    false,
         "cost"       :    6,
         "time"       :    0,
         "fatigue"    :    true,
@@ -4129,7 +4130,7 @@
         "visibility" : 7,
         "ugliness" : 4,
         "mixed_effect" : true,
-        "description" : "Your arms have transformed into tentacles, resulting in a bonus of 1 to dexterity, permanent hand encumbrance of 3, and inability to wear gloves.  Somewhat decreases wet penalties.",
+        "description" : "Your arms have transformed into tentacles, resulting in a bonus of 1 to dexterity, permanent hand encumbrance of 30, and inability to wear gloves.  Somewhat decreases wet penalties.",
         "leads_to" : ["CLAWS_TENTACLE"],
         "changes_to" : ["ARM_TENTACLES_4"],
         "cancels" : ["PAWS", "PAWS_LARGE"],
@@ -4146,7 +4147,7 @@
         "points" : -3,
         "visibility" : 8,
         "ugliness" : 5,
-        "description" : "Your arms have transformed into four tentacles, resulting in a bonus of 1 to dexterity, permanent hand encumbrance of 3, and inability to wear gloves.  You can make up to 3 extra attacks with them.  Somewhat decreases wet penalties.",
+        "description" : "Your arms have transformed into four tentacles, resulting in a bonus of 1 to dexterity, permanent hand encumbrance of 30, and inability to wear gloves.  You can make up to 3 extra attacks with them.  Somewhat decreases wet penalties.",
         "prereqs" : ["ARM_TENTACLES"],
         "leads_to" : ["CLAWS_TENTACLE"],
         "changes_to" : ["ARM_TENTACLES_8"],
@@ -4164,7 +4165,7 @@
         "points" : -2,
         "visibility" : 9,
         "ugliness" : 6,
-        "description" : "Your arms have transformed into eight tentacles, resulting in a bonus of 1 to dexterity, permanent hand encumbrance of 3, and inability to wear gloves.  You can make up to 7 extra attacks with them.  Somewhat decreases wet penalties.",
+        "description" : "Your arms have transformed into eight tentacles, resulting in a bonus of 1 to dexterity, permanent hand encumbrance of 30, and inability to wear gloves.  You can make up to 7 extra attacks with them.  Somewhat decreases wet penalties.",
         "prereqs" : ["ARM_TENTACLES_4"],
         "cancels" : ["PAWS", "PAWS_LARGE"],
         "leads_to" : ["CLAWS_TENTACLE"],
@@ -4444,7 +4445,8 @@
         "visibility" : 0,
         "ugliness" : 0,
         "description" : "Your mutated flesh is immune to the damaging effects of acid.",
-        "threshreq" : ["THRESH_INSECT", "THRESH_CHIMERA", "THRESH_MEDICAL", "THRESH_SLIME"]
+        "threshreq" : ["THRESH_INSECT", "THRESH_CHIMERA", "THRESH_MEDICAL", "THRESH_SLIME"],
+        "category" : ["MUTCAT_INSECT", "MUTCAT_CHIMERA", "MUTCAT_MEDICAL", "MUTCAT_SLIME"]
     },{
         "type" : "mutation",
         "id" : "ACIDBLOOD",
@@ -4454,7 +4456,8 @@
         "ugliness" : 0,
         "description" : "Your body has developed a wonderful defense mechanism.  Instead of normal blood, you bleed a strong molecular acid which will damage any creature foolish enough to harm you.",
         "prereqs" : ["ACIDPROOF"],
-        "threshreq" : ["THRESH_INSECT", "THRESH_CHIMERA", "THRESH_MEDICAL", "THRESH_SLIME"]
+        "threshreq" : ["THRESH_INSECT", "THRESH_CHIMERA", "THRESH_MEDICAL", "THRESH_SLIME"],
+        "category" : ["MUTCAT_INSECT", "MUTCAT_CHIMERA", "MUTCAT_MEDICAL", "MUTCAT_SLIME"]
     },{
         "type" : "mutation",
         "id" : "PROF_POLICE",
@@ -4479,6 +4482,15 @@
         "name" : "Bionic Officer",
         "points" : 0,
         "description" : "You are a cybernetically-resurrected law enforcer, with jurisdiction throughout the New England region thanks to interstate agreements.  Whether you can do for the law what the law did for you is another question.",
+        "valid": false,
+        "purifiable": false,
+        "profession": true
+    },{
+        "type" : "mutation",
+        "id" : "PROF_CHURL",
+        "name" : "Churl",
+        "points" : 0,
+        "description" : "Thou art a lewede man, a lowly cowherd, though where thi catel been thou hast not ynn certain.",
         "valid": false,
         "purifiable": false,
         "profession": true
@@ -4650,6 +4662,14 @@
         "points" : 99,
         "valid" : false,
         "description" : "Crafting and construction requirements bugger off with this one.  Apply with care.",
+        "threshold" : true
+    },{
+        "type" : "mutation",
+        "id" : "DEBUG_MIND_CONTROL",
+        "name" : "Debug Mind Control",
+        "points" : 99,
+        "valid" : false,
+        "description" : "Mind the bugs, would you kindly?.",
         "threshold" : true
     }
 ]

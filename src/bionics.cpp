@@ -27,6 +27,13 @@
 #include <algorithm> //std::min
 #include <sstream>
 
+// '!', '-' and '=' are uses as default bindings in the menu
+const invlet_wrapper bionic_chars("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\"#&()*+./:;@[\\]^_{|}");
+
+const skill_id skilll_electronics( "electronics" );
+const skill_id skilll_firstaid( "firstaid" );
+const skill_id skilll_mechanics( "mechanics" );
+
 namespace {
 std::map<std::string, bionic_data> bionics;
 std::vector<std::string> faulty_bionics;
@@ -65,12 +72,12 @@ void show_bionics_titlebar(WINDOW *window, player *p, std::string menu_mode)
     werase(window);
 
     std::string caption = _("BIONICS -");
-    int cap_offset = utf8_width(caption.c_str()) + 1;
+    int cap_offset = utf8_width(caption) + 1;
     mvwprintz(window, 0,  0, c_blue, "%s", caption.c_str());
 
     std::stringstream pwr;
     pwr << string_format(_("Power: %i/%i"), int(p->power_level), int(p->max_power_level));
-    int pwr_length = utf8_width(pwr.str().c_str()) + 1;
+    int pwr_length = utf8_width(pwr.str()) + 1;
     mvwprintz(window, 0, getmaxx(window) - pwr_length, c_white, "%s", pwr.str().c_str());
 
     std::string desc;
@@ -107,7 +114,6 @@ std::string build_bionic_poweronly_string(bionic const &bio)
     }
     if (bionics[bio.id].power_activate > 0 && !bionics[bio.id].charge_time) {
         if(hasPreviousText){
-            hasPreviousText = false;
             power_desc << ", ";
         }
         power_desc << string_format(_("%d PU act"),
@@ -116,7 +122,6 @@ std::string build_bionic_poweronly_string(bionic const &bio)
     }
     if (bionics[bio.id].power_deactivate > 0 && !bionics[bio.id].charge_time) {
         if(hasPreviousText){
-            hasPreviousText = false;
             power_desc << ", ";
         }
         power_desc << string_format(_("%d PU deact"),
@@ -125,7 +130,6 @@ std::string build_bionic_poweronly_string(bionic const &bio)
     }
     if (bionics[bio.id].toggled) {
         if(hasPreviousText){
-            hasPreviousText = false;
             power_desc << ", ";
         }
         power_desc << (bio.powered ? _("ON") : _("OFF"));
@@ -401,7 +405,7 @@ void player::power_bionics()
         }
         int tab_x = tabs_start;
         draw_tab(w_tabs, tab_x, active_tab_name, tab_mode == "TAB_ACTIVE");
-        tab_x += tab_step + utf8_width(active_tab_name.c_str());
+        tab_x += tab_step + utf8_width(active_tab_name);
         draw_tab(w_tabs, tab_x, passive_tab_name, tab_mode != "TAB_ACTIVE");
         wrefresh(w_tabs);
 
@@ -437,26 +441,24 @@ void player::power_bionics()
         if (menu_mode == "reassigning") {
             menu_mode = "activating";
             tmp = bionic_by_invlet(ch);
-            if(tmp == 0) {
+            if(tmp == nullptr) {
                 // Selected an non-existing bionic (or escape, or ...)
                 continue;
             }
             redraw = true;
-            const char newch = popup_getkey(_("%s; enter new letter."),
+            const long newch = popup_getkey(_("%s; enter new letter."),
                     bionics[tmp->id].name.c_str());
             wrefresh(wBio);
             if(newch == ch || newch == ' ' || newch == KEY_ESCAPE) {
                 continue;
             }
-            bionic *otmp = bionic_by_invlet(newch);
-            // if there is already a bionic with the new invlet, the invlet
-            // is considered valid.
-            if(otmp == 0 && inv_chars.find(newch) == std::string::npos) {
-                // TODO separate list of letters for bionics
-                popup(_("%c is not a valid inventory letter."), newch);
+            if( !bionic_chars.valid( newch ) ) {
+                popup( _("Invlid bionic letter. Only those characters are valid:\n\n%s"),
+                       bionic_chars.get_allowed_chars().c_str() );
                 continue;
             }
-            if(otmp != 0) {
+            bionic *otmp = bionic_by_invlet(newch);
+            if(otmp != nullptr) {
                 std::swap(tmp->invlet, otmp->invlet);
             } else {
                 tmp->invlet = newch;
@@ -518,20 +520,27 @@ void player::power_bionics()
                 tmp = bio_list[cursor];
             }else{
                 tmp = bionic_by_invlet(ch);
-                if(tmp != NULL && tmp != bio_last) {
+                if(tmp && tmp != bio_last) {
                     // new bionic selected, update cursor and scroll position
-                    for(cursor = 0; cursor < (int)bio_list.size(); cursor++) {
-                        if(bio_list[cursor] == tmp) {
+                    int temp_cursor = 0;
+                    for(temp_cursor = 0; temp_cursor < (int)bio_list.size(); temp_cursor++) {
+                        if(bio_list[temp_cursor] == tmp) {
                             break;
                         }
                     }
+                    // if bionic is not found in current list, ignore the attempt to view/activate
+                    if(temp_cursor >= (int)bio_list.size()) {
+                        continue;
+                    }
+                    //relocate cursor to the bionic that was found
+                    cursor = temp_cursor;
                     scroll_position = 0;
                     while(scroll_position < max_scroll_position && cursor - scroll_position > LIST_HEIGHT - half_list_view_location) {
                         scroll_position++;
                     }
                 }
             }
-            if(tmp == 0) {
+            if(!tmp) {
                 // entered a key that is not mapped to any bionic,
                 // -> leave screen
                 break;
@@ -653,14 +662,13 @@ bool player::activate_bionic(int b, bool eff_only)
         add_msg(m_info, _("You activate your %s."), bionics[bio.id].name.c_str());
     }
 
-    std::vector<point> traj;
     std::vector<std::string> good;
     std::vector<std::string> bad;
     tripoint dirp = pos();
     int &dirx = dirp.x;
     int &diry = dirp.y;
     item tmp_item;
-    w_point const weatherPoint = g->weatherGen->get_weather( global_square_location(), calendar::turn );
+    w_point const weatherPoint = g->weather_gen->get_weather( global_square_location(), calendar::turn );
 
     // On activation effects go here
     if(bio.id == "bio_painkiller") {
@@ -800,7 +808,7 @@ bool player::activate_bionic(int b, bool eff_only)
         if (has_effect("bloodworms")) {
             good.push_back(_("Hemolytic Parasites"));
         }
-        if (has_effect("brainworm")) {  // This little guy is immune to the blood filter too, as he lives in your brain.
+        if (has_effect("brainworms")) {  // These little guys are immune to the blood filter too, as they live in your brain.
             good.push_back(_("Intracranial Parasite"));
         }
         if (has_effect("paincysts")) {  // These little guys are immune to the blood filter too, as they live in your muscles.
@@ -874,7 +882,7 @@ bool player::activate_bionic(int b, bool eff_only)
         }
     } else if(bio.id == "bio_leukocyte") {
         set_healthy(std::min(100, get_healthy() + 2));
-        mod_healthy_mod(20);
+        mod_healthy_mod(20, 100);
     } else if(bio.id == "bio_geiger") {
         add_msg(m_info, _("Your radiation level: %d"), radiation);
     } else if(bio.id == "bio_radscrubber") {
@@ -952,17 +960,13 @@ bool player::activate_bionic(int b, bool eff_only)
             charge_power(bionics["bio_water_extractor"].power_activate);
         }
     } else if(bio.id == "bio_magnet") {
+        std::vector<tripoint> traj;
         for (int i = posx() - 10; i <= posx() + 10; i++) {
             for (int j = posy() - 10; j <= posy() + 10; j++) {
                 if (g->m.i_at(i, j).size() > 0) {
-                    int t; //not sure why map:sees really needs this, but w/e
-                    if (g->m.sees(i, j, posx(), posy(), -1, t)) {
-                        traj = line_to(i, j, posx(), posy(), t);
-                    } else {
-                        traj = line_to(i, j, posx(), posy(), 0);
-                    }
+                    traj = g->m.find_clear_path( {i, j, posz()}, pos3() );
                 }
-                traj.insert(traj.begin(), point(i, j));
+                traj.insert(traj.begin(), {i, j, posz()});
                 if( g->m.has_flag( "SEALED", i, j ) ) {
                     continue;
                 }
@@ -971,9 +975,9 @@ bool player::activate_bionic(int b, bool eff_only)
                     if( (tmp_item.made_of("iron") || tmp_item.made_of("steel")) &&
                         tmp_item.weight() < weight_capacity() ) {
                         g->m.i_rem(i, j, k);
-                        std::vector<point>::iterator it;
+                        std::vector<tripoint>::iterator it;
                         for (it = traj.begin(); it != traj.end(); ++it) {
-                            int index = g->mon_at({it->x, it->y, posz()});
+                            int index = g->mon_at(*it);
                             if (index != -1) {
                                 g->zombie(index).apply_damage( this, bp_torso, tmp_item.weight() / 225 );
                                 g->zombie(index).check_dead_state();
@@ -987,7 +991,7 @@ bool player::activate_bionic(int b, bool eff_only)
                                         break;
                                     }
                                 } else {
-                                    g->m.bash( tripoint( it->x, it->y, posz() ), tmp_item.weight() / 225 );
+                                    g->m.bash( *it, tmp_item.weight() / 225 );
                                     if (g->m.move_cost(it->x, it->y) == 0) {
                                         break;
                                     }
@@ -1022,9 +1026,9 @@ bool player::activate_bionic(int b, bool eff_only)
     } else if(bio.id == "bio_meteorologist") {
         // Calculate local wind power
         int vpart = -1;
-        vehicle *veh = g->m.veh_at( posx(), posy(), vpart );
+        vehicle *veh = g->m.veh_at( pos(), vpart );
         int vehwindspeed = 0;
-        if( veh ) {
+        if( veh != nullptr ) {
             vehwindspeed = abs(veh->velocity / 100); // vehicle velocity in mph
         }
         const oter_id &cur_om_ter = overmap_buffer.ter( global_omt_location() );
@@ -1209,8 +1213,8 @@ void player::process_bionic(int b)
     }
 
     // Bionic effects on every turn they are active go here.
-    if (bio.id == "bio_night") {
-        if (calendar::turn % 5) {
+    if( bio.id == "bio_night" ) {
+        if( calendar::once_every(5) ) {
             add_msg(m_neutral, _("Artificial night generator active!"));
         }
     } else if( bio.id == "bio_remote" ) {
@@ -1329,9 +1333,9 @@ bool player::uninstall_bionic(std::string const &b_id, int skill_level)
                                 difficulty + 2);
     } else {
         chance_of_success = bionic_manip_cos(int_cur,
-                                skillLevel("electronics"),
-                                skillLevel("firstaid"),
-                                skillLevel("mechanics"),
+                                skillLevel( skilll_electronics ),
+                                skillLevel( skilll_firstaid ),
+                                skillLevel( skilll_mechanics ),
                                 difficulty + 2);
     }
 
@@ -1359,9 +1363,9 @@ bool player::uninstall_bionic(std::string const &b_id, int skill_level)
     if (skill_level == -1)
         use_charges("1st_aid", 1);
 
-    practice( "electronics", int((100 - chance_of_success) * 1.5) );
-    practice( "firstaid", int((100 - chance_of_success) * 1.0) );
-    practice( "mechanics", int((100 - chance_of_success) * 0.5) );
+    practice( skilll_electronics, int((100 - chance_of_success) * 1.5) );
+    practice( skilll_firstaid, int((100 - chance_of_success) * 1.0) );
+    practice( skilll_mechanics, int((100 - chance_of_success) * 0.5) );
 
     int success = chance_of_success - rng(1, 100);
 
@@ -1440,9 +1444,9 @@ bool player::install_bionics(const itype &type, int skill_level)
                                 difficult);
     } else {
         chance_of_success = bionic_manip_cos(int_cur,
-                                skillLevel("electronics"),
-                                skillLevel("firstaid"),
-                                skillLevel("mechanics"),
+                                skillLevel( skilll_electronics ),
+                                skillLevel( skilll_firstaid ),
+                                skillLevel( skilll_mechanics ),
                                 difficult);
     }
 
@@ -1452,9 +1456,9 @@ bool player::install_bionics(const itype &type, int skill_level)
         return false;
     }
 
-    practice( "electronics", int((100 - chance_of_success) * 1.5) );
-    practice( "firstaid", int((100 - chance_of_success) * 1.0) );
-    practice( "mechanics", int((100 - chance_of_success) * 0.5) );
+    practice( skilll_electronics, int((100 - chance_of_success) * 1.5) );
+    practice( skilll_firstaid, int((100 - chance_of_success) * 1.0) );
+    practice( skilll_mechanics, int((100 - chance_of_success) * 0.5) );
     int success = chance_of_success - rng(0, 99);
     if (success > 0) {
         add_memorial_log(pgettext("memorial_male", "Installed bionic: %s."),
@@ -1492,9 +1496,9 @@ void bionics_install_failure(player *u, int difficulty, int success)
     // it would be better for code reuse just to pass in skill as an argument from install_bionic
     // pl_skill should be calculated the same as in install_bionics
     int pl_skill = u->int_cur * 4 +
-                   u->skillLevel("electronics") * 4 +
-                   u->skillLevel("firstaid")    * 3 +
-                   u->skillLevel("mechanics")   * 1;
+                   u->skillLevel( skilll_electronics ) * 4 +
+                   u->skillLevel( skilll_firstaid )    * 3 +
+                   u->skillLevel( skilll_mechanics )   * 1;
     // Medical residents get a substantial assist here
     if (u->has_trait("PROF_MED")) {
         pl_skill += 6;
@@ -1616,7 +1620,7 @@ void player::add_bionic( std::string const &b )
         return;
     }
     char newinv = ' ';
-    for( auto &inv_char : inv_chars ) {
+    for( auto &inv_char : bionic_chars ) {
         if( bionic_by_invlet( inv_char ) == nullptr ) {
             newinv = inv_char;
             break;
@@ -1663,11 +1667,12 @@ int player::num_bionics() const
     return my_bionics.size();
 }
 
-std::pair<int, int> player::amount_of_storage_bionics() {
+std::pair<int, int> player::amount_of_storage_bionics() const
+{
     int lvl = max_power_level;
 
     // exclude amount of power capacity obtained via non-power-storage CBMs
-    for (auto it : my_bionics) {
+    for( auto it : my_bionics ) {
         lvl -= bionics[it.id].capacity;
     }
 
@@ -1700,13 +1705,13 @@ bionic& player::bionic_at_index(int i)
     return my_bionics[i];
 }
 
-bionic* player::bionic_by_invlet(char ch) {
+bionic* player::bionic_by_invlet( const long ch ) {
     for( auto &elem : my_bionics ) {
         if( elem.invlet == ch ) {
             return &elem;
         }
     }
-    return 0;
+    return nullptr;
 }
 
 // Returns true if a bionic was removed.

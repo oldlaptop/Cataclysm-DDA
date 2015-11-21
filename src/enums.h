@@ -3,12 +3,11 @@
 
 #include <climits>
 #include <cassert>
-#include <algorithm>
 
 #include "json.h" // (de)serialization for points
 
 #ifndef sgn
-#define sgn(x) (((x) < 0) ? -1 : 1)
+#define sgn(x) (((x) < 0) ? -1 : (((x)>0) ? 1 : 0))
 #endif
 
 // By default unordered_map doesn't have a hash for tuple or pairs, so we need to include some.
@@ -84,7 +83,7 @@ enum special_game_id {
     NUM_SPECIAL_GAMES
 };
 
-enum art_effect_passive {
+enum art_effect_passive : int {
     AEP_NULL = 0,
     // Good
     AEP_STR_UP, // Strength + 4
@@ -177,7 +176,8 @@ enum object_type {
 struct point : public JsonSerializer, public JsonDeserializer {
     int x;
     int y;
-    point(int X = 0, int Y = 0) : x (X), y (Y) {}
+    point() : x(0), y(0) {}
+    point(int X, int Y) : x (X), y (Y) {}
     point(point &&) = default;
     point(const point &) = default;
     point &operator=(point &&) = default;
@@ -353,22 +353,6 @@ inline bool operator<(const tripoint &a, const tripoint &b)
 }
 
 static const tripoint tripoint_min { INT_MIN, INT_MIN, INT_MIN };
-
-// turns a vector, into an array, via MAGIC(tm)
-template <typename T, std::size_t N>
-std::array<T, N> vec_to_array(const std::vector<T> &vec)
-{
-    std::array<T, N> array;
-    for(size_t i = 0; i < N; ++i) {
-        array[i] = vec[i];
-    }
-    return array;
-}
-
-template <typename T, typename C>
-inline bool is_any_of(const T &t, const C &c)
-{
-    return std::find(c.begin(), c.end(), t) != c.end();
-}
+static const tripoint tripoint_zero { 0, 0, 0 };
 
 #endif

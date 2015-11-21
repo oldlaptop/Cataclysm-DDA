@@ -26,6 +26,7 @@
 #include "mapsharing.h"
 #include "uistate.h"
 #include "mongroup.h"
+#include "mtype.h"
 #include "name.h"
 #include "translations.h"
 #include "mapgen_functions.h"
@@ -52,6 +53,38 @@
 enum oter_dir {
     oter_dir_north, oter_dir_east, oter_dir_west, oter_dir_south
 };
+
+#include "omdata.h"
+////////////////
+oter_iid ot_null,
+         ot_crater,
+         ot_field,
+         ot_forest,
+         ot_forest_thick,
+         ot_forest_water,
+         ot_river_center;
+
+
+oter_iid oterfind(const std::string id)
+{
+    if( otermap.find(id) == otermap.end() ) {
+        debugmsg("Can't find %s", id.c_str());
+        return 0;
+    }
+    return otermap[id].loadid;
+}
+
+void set_oter_ids()   // fixme constify
+{
+    ot_null = oterfind("");
+    // NOT required.
+    ot_crater = oterfind("crater");
+    ot_field = oterfind("field");
+    ot_forest = oterfind("forest");
+    ot_forest_thick = oterfind("forest_thick");
+    ot_forest_water = oterfind("forest_water");
+    ot_river_center = oterfind("river_center");
+}
 
 std::unordered_map<std::string, oter_t> otermap;
 std::vector<oter_t> oterlist;
@@ -823,7 +856,11 @@ overmap::overmap(int const x, int const y): loc(x, y), nullret(""), nullbool(fal
     settings = rsit->second;
 
     init_layers();
-    open();
+    try {
+        open();
+    } catch( const std::exception &err ) {
+        debugmsg( "overmap (%d,%d) failed to load: %s", loc.x, loc.y, err.what() );
+    }
 }
 
 overmap::overmap(): loc(0, 0), nullret(""), nullbool(false)
@@ -1025,7 +1062,7 @@ point overmap::display_notes(int z)
     const unsigned maxitems = FULL_SCREEN_HEIGHT - 4;
     int ch = '.';
     unsigned start = 0;
-    const int back_len = utf8_width(back_msg.c_str());
+    const int back_len = utf8_width( back_msg );
     bool redraw = true;
     point result(-1, -1);
 
@@ -1537,7 +1574,7 @@ bool get_weather_glyph( point const &pos, nc_color &ter_color, long &ter_sym )
     auto iter = weather_cache.find( pos );
     if( iter == weather_cache.end() ) {
         auto const abs_ms_pos =  point( pos.x * SEEX * 2, pos.y * SEEY * 2 );
-        auto const weather = g->weatherGen->get_weather_conditions( abs_ms_pos, calendar::turn );
+        auto const weather = g->weather_gen->get_weather_conditions( abs_ms_pos, calendar::turn );
         iter = weather_cache.insert( std::make_pair( pos, weather ) ).first;
     }
     switch( iter->second ) {
@@ -1602,7 +1639,7 @@ void overmap::draw(WINDOW *w, WINDOW *wbar, const tripoint &center,
     nc_color ter_color;
     long ter_sym;
     // sight_points is hoisted for speed reasons.
-    int sight_points = g->u.overmap_sight_range(g->light_level());
+    int sight_points = g->u.overmap_sight_range( g->light_level( g->u.posz() ) );
 
     std::string sZoneName;
     tripoint tripointZone = tripoint(-1, -1, -1);
@@ -1725,7 +1762,13 @@ void overmap::draw(WINDOW *w, WINDOW *wbar, const tripoint &center,
             // Are we debugging monster groups?
             if(blink && data.debug_mongroup) {
                 // Check if this tile is the target of the currently selected group
-                if(mgroup && mgroup->target.x / 2 == omx && mgroup->target.y / 2 == omy) {
+
+                // Convert to position within overmap
+                int localx = omx * 2;
+                int localy = omy * 2;
+                overmapbuffer::sm_to_om_remain(localx, localy);
+
+                if(mgroup && mgroup->target.x / 2 == localx / 2 && mgroup->target.y / 2 == localy / 2) {
                     ter_color = c_red;
                     ter_sym = 'x';
                 } else {
@@ -1822,7 +1865,7 @@ void overmap::draw(WINDOW *w, WINDOW *wbar, const tripoint &center,
     if( !corner_text.empty() ) {
         int maxlen = 0;
         for (auto const &line : corner_text) {
-            maxlen = std::max(maxlen, utf8_width(line.c_str()));
+            maxlen = std::max( maxlen, utf8_width(line) );
         }
 
         const std::string spacer(maxlen, ' ');
@@ -1842,7 +1885,7 @@ void overmap::draw(WINDOW *w, WINDOW *wbar, const tripoint &center,
         std::string sTemp = _("Zone:");
         sTemp += " " + sZoneName;
 
-        const int length = utf8_width(sTemp.c_str());
+        const int length = utf8_width( sTemp );
         for (int i = 0; i <= length; i++) {
             mvwputch(w, om_map_height-2, i, c_white, LINE_OXOX);
         }
@@ -1980,6 +2023,10 @@ tripoint overmap::draw_overmap(const tripoint &orig, const draw_data_t &data)
     g->w_omlegend = newwin(TERMY, 28, 0, TERMX - 28);
     delwin(g->w_overmap);
     g->w_overmap = newwin(OVERMAP_WINDOW_HEIGHT, OVERMAP_WINDOW_WIDTH, 0, 0);
+
+    // Clear the sidebar, else the pixel minimap will still appear.
+    werase(g->w_omlegend);
+    wrefresh(g->w_omlegend);
 
     // Draw black padding space to avoid gap between map and legend
     delwin(g->w_blackspace);
@@ -2193,13 +2240,39 @@ void overmap::clear_mon_groups()
     zg.clear();
 }
 
-void mongroup::wander()
+void mongroup::wander(overmap& om)
 {
-    // TODO: More interesting stuff possible, like looking for nearby shelter.
-    // What a monster thinks of as shelter is another matter...
-    target.x += rng( -10, 10 );
-    target.y += rng( -10, 10 );
-    interest = 30;
+    const city* target_city = NULL;
+    int target_distance = 0;
+
+    if(horde_behaviour == "city") {
+        // Find a nearby city to return to..
+        for(const city& check_city : om.cities) {
+            // Monsters shouldn't always wander directly to the nearest city, add
+            // a bit of randomness.
+            if(one_in(3)) continue;
+
+            // Check if this is the nearest city so far.
+            int distance = rl_dist(check_city.x, check_city.y, pos.x, pos.y);
+            if(!target_city || distance < target_distance) {
+                target_distance = distance;
+                target_city = &check_city;
+            }
+        }
+    }
+
+    if(target_city) {
+        // TODO: somehow use the same algorithm that distributes zombie
+        // density at world gen to spread the hordes over the actual
+        // city, rather than the center city tile
+        target.x = target_city->x * 2 + rng( -5, 5 );
+        target.y = target_city->y * 2 + rng( -5, 5 );
+        interest = 100;
+    } else {
+        target.x = pos.x + rng( -10, 10 );
+        target.y = pos.y + rng( -10, 10 );
+        interest = 30;
+    }
 }
 
 void overmap::move_hordes()
@@ -2213,7 +2286,26 @@ void overmap::move_hordes()
             ++it;
             continue;
         }
-        if( rng(0, 100) < mg.interest ) {
+
+        if(mg.horde_behaviour == "") {
+            mg.horde_behaviour = one_in(2) ? "city" : "roam";
+        }
+
+        // Gradually decrease interest.
+        mg.dec_interest( 1 );
+
+        // Decrease movement chance according to the terrain we're currently on.
+        const oter_id& walked_into = ter(mg.pos.x, mg.pos.y, mg.pos.z);
+        int movement_chance = 1;
+        if(walked_into == ot_forest || walked_into == ot_forest_water) {
+            movement_chance = 3;
+        } else if(walked_into == ot_forest_thick) {
+            movement_chance = 6;
+        } else if(walked_into == ot_river_center) {
+            movement_chance = 10;
+        }
+
+        if( one_in(movement_chance) && rng(0, 100) < mg.interest ) {
             // TODO: Adjust for monster speed.
             // TODO: Handle moving to adjacent overmaps.
             if( mg.pos.x > mg.target.x) {
@@ -2229,18 +2321,69 @@ void overmap::move_hordes()
                 mg.pos.y++;
             }
 
-            if( mg.pos.x == mg.target.x && mg.pos.y == mg.target.y ) {
-                mg.wander();
-            } else {
-                mg.dec_interest( 1 );
+            if( (mg.pos.x == mg.target.x && mg.pos.y == mg.target.y) || mg.interest <= 0 ) {
+                mg.wander(*this);
             }
             // Erase the group at it's old location, add the group with the new location
             tmpzg.insert( std::pair<tripoint, mongroup>( mg.pos, mg ) );
             zg.erase( it++ );
+        } else {
+            ++it;
         }
     }
     // and now back into the monster group map.
     zg.insert( tmpzg.begin(), tmpzg.end() );
+
+
+    if(ACTIVE_WORLD_OPTIONS["WANDER_SPAWNS"]) {
+        static const mongroup_id GROUP_ZOMBIE("GROUP_ZOMBIE");
+
+        // Re-absorb zombies into hordes.
+        // Scan over monsters outside the player's view and place them back into hordes.
+        auto monster_map_it = monster_map.begin();
+        while(monster_map_it != monster_map.end()) {
+            const auto& p = monster_map_it->first;
+            auto& this_monster = monster_map_it->second;
+
+            // Check if the monster is a zombie.
+            auto& type = *(this_monster.type);
+            if(
+                !type.species.count(species_id("ZOMBIE")) || // Only add zombies to hordes.
+                type.id == mtype_id("mon_jabberwock") || // Jabberwockies are an exception.
+                this_monster.mission_id != -1 // We mustn't delete monsters that are related to missions.
+            ) {
+                // Don't delete the monster, just increment the iterator.
+                monster_map_it++;
+                continue;
+            }
+
+            // Scan for compatible hordes in this area.
+            mongroup *add_to_group = NULL;
+            auto group_bucket = zg.equal_range(p);
+            std::for_each( group_bucket.first, group_bucket.second,
+                [&](std::pair<const tripoint, mongroup> &horde_entry ) {
+                mongroup &horde = horde_entry.second;
+
+                // We only absorb zombies into GROUP_ZOMBIE hordes
+                if(horde.horde && !horde.monsters.empty() && horde.type == GROUP_ZOMBIE) {
+                    add_to_group = &horde;
+                }
+            });
+
+            // If there is no horde to add the monster to, create one.
+            if(add_to_group == NULL) {
+                mongroup m(GROUP_ZOMBIE, p.x, p.y, p.z, 0, 0);
+                m.horde = true;
+                m.monsters.push_back(this_monster);
+                add_mon_group( m );
+            } else {
+                add_to_group->monsters.push_back(this_monster);
+            }
+
+            // Delete the monster, continue iterating.
+            monster_map_it = monster_map.erase(monster_map_it);
+        }
+    }
 }
 
 /**
@@ -2459,6 +2602,9 @@ void overmap::place_cities()
     int NUM_CITIES = dice(4, 4);
     int start_dir;
     int op_city_size = int(ACTIVE_WORLD_OPTIONS["CITY_SIZE"]);
+    if( op_city_size <= 0 ) {
+        return;
+    }
     // Limit number of cities based on average size.
     NUM_CITIES = std::min(NUM_CITIES, int(256 / op_city_size * op_city_size));
 
@@ -3740,7 +3886,7 @@ void overmap::place_special(const overmap_special& special, const tripoint& p, i
     }
 
     // place spawns
-    if(special.spawns.group != mongroup_id( "GROUP_NULL" ) ) {
+    if( special.spawns.group ) {
         const overmap_special_spawns& spawns = special.spawns;
         const int pop = rng(spawns.min_population, spawns.max_population);
         const int rad = rng(spawns.min_radius, spawns.max_radius);
@@ -3774,7 +3920,7 @@ void overmap::place_mongroups()
                             elem.s * 80 );
 //                m.set_target( zg.back().posx, zg.back().posy );
                 m.horde = true;
-                m.wander();
+                m.wander(*this);
                 add_mon_group( m );
             }
         }
@@ -3895,11 +4041,11 @@ void overmap::open()
     std::string const terfilename = overmapbuffer::terrain_filename(loc.x, loc.y);
     std::ifstream fin;
 
-    fin.open(terfilename.c_str());
+    fin.open(terfilename.c_str(), std::ifstream::binary);
     if( fin.is_open() ) {
         unserialize(fin);
         fin.close();
-        fin.open(plrfilename);
+        fin.open(plrfilename, std::ifstream::binary);
         if( fin.is_open() ) {
             unserialize_view(fin);
             fin.close();
@@ -3938,38 +4084,6 @@ void overmap::save() const
     }
     serialize( fout );
     fclose_exclusive(fout, terfilename.c_str());
-}
-
-#include "omdata.h"
-////////////////
-oter_iid ot_null,
-         ot_crater,
-         ot_field,
-         ot_forest,
-         ot_forest_thick,
-         ot_forest_water,
-         ot_river_center;
-
-
-oter_iid oterfind(const std::string id)
-{
-    if( otermap.find(id) == otermap.end() ) {
-        debugmsg("Can't find %s", id.c_str());
-        return 0;
-    }
-    return otermap[id].loadid;
-}
-
-void set_oter_ids()   // fixme constify
-{
-    ot_null = oterfind("");
-    // NOT required.
-    ot_crater = oterfind("crater");
-    ot_field = oterfind("field");
-    ot_forest = oterfind("forest");
-    ot_forest_thick = oterfind("forest_thick");
-    ot_forest_water = oterfind("forest_water");
-    ot_river_center = oterfind("river_center");
 }
 
 

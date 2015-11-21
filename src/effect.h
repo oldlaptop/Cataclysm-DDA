@@ -81,8 +81,8 @@ class effect_type
 
         bool main_parts_only;
 
-        std::string resist_trait;
-        std::string resist_effect;
+        std::vector<std::string> resist_traits;
+        std::vector<std::string> resist_effects;
         std::vector<std::string> removes_effects;
         std::vector<std::string> blocks_effects;
 
@@ -122,17 +122,25 @@ class effect : public JsonSerializer, public JsonDeserializer
             duration(0),
             bp(num_bp),
             permanent(false),
-            intensity(1)
+            intensity(1),
+            start_turn(0)
         { }
-        effect(effect_type *peff_type, int dur, body_part part, bool perm, int nintensity) :
+        effect(effect_type *peff_type, int dur, body_part part, bool perm, int nintensity, int nstart_turn) :
             eff_type(peff_type),
             duration(dur),
             bp(part),
             permanent(perm),
-            intensity(nintensity)
+            intensity(nintensity),
+            start_turn(nstart_turn)
         { }
         effect(const effect &) = default;
         effect &operator=(const effect &) = default;
+
+        /** Dummy effect effect returned when getting an effect that doesn't exist. */
+        static effect null_effect;
+
+        /** Compares pointers of this effect with the dummy above. */
+        bool is_null() const;
 
         /** Returns the name displayed in the player status window. */
         std::string disp_name() const;
@@ -160,6 +168,9 @@ class effect : public JsonSerializer, public JsonDeserializer
         /** Multiplies the duration, capping at max_duration if it exists. */
         void mult_duration(double dur);
 
+        /** Returns the turn the effect was applied. */
+        int get_start_turn() const;
+
         /** Returns the targeted body_part of the effect. This is num_bp for untargeted effects. */
         body_part get_bp() const;
         /** Sets the targeted body_part of an effect. */
@@ -182,9 +193,9 @@ class effect : public JsonSerializer, public JsonDeserializer
         void mod_intensity(int nintensity);
 
         /** Returns the string id of the resist trait to be used in has_trait("id"). */
-        std::string get_resist_trait() const;
+        const std::vector<std::string> &get_resist_traits() const;
         /** Returns the string id of the resist effect to be used in has_effect("id"). */
-        std::string get_resist_effect() const;
+        const std::vector<std::string> &get_resist_effects() const;
         /** Returns the string ids of the effects removed by this effect to be used in remove_effect("id"). */
         const std::vector<std::string> &get_removes_effects() const;
         /** Returns the string ids of the effects blocked by this effect to be used in add_effect("id"). */
@@ -240,6 +251,7 @@ class effect : public JsonSerializer, public JsonDeserializer
         body_part bp;
         bool permanent;
         int intensity;
+        int start_turn;
 
 };
 

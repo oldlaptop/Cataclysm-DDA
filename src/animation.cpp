@@ -5,13 +5,12 @@
 #include "monster.h"
 #include "mtype.h"
 #include "weather.h"
-#ifdef SDLTILES
+#ifdef TILES
 #include "cata_tiles.h" // all animation functions will be pushed out to a cata_tiles function in some manner
 
 extern cata_tiles *tilecontext; // obtained from sdltiles.cpp
 #endif
 
-extern void try_update();
 bool is_valid_in_w_terrain(int x, int y); // see game.cpp
 
 namespace {
@@ -127,15 +126,12 @@ void draw_custom_explosion_curses( game &g, const std::list< std::map<point, exp
         }
 
         wrefresh(g.w_terrain);
-#if defined(SDLTILES)
-        try_update();
-#endif
         draw_animation_delay(EXPLOSION_MULTIPLIER);
     }
 }
 } // namespace
 
-#if defined(SDLTILES)
+#if defined(TILES)
 void game::draw_explosion( const tripoint &p, int const r, nc_color const col )
 {
     if (!use_tiles) {
@@ -146,7 +142,6 @@ void game::draw_explosion( const tripoint &p, int const r, nc_color const col )
     for (int i = 1; i <= r; i++) {
         tilecontext->init_explosion( p, i ); // TODO not xpos ypos?
         wrefresh(w_terrain);
-        try_update();
         draw_animation_delay(EXPLOSION_MULTIPLIER);
     }
 
@@ -171,7 +166,7 @@ void game::draw_custom_explosion( const tripoint &, const std::map<tripoint, nc_
 
     // Start by getting rid of everything except current z-level
     std::map<point, explosion_tile> neighbors;
-#if defined(SDLTILES)
+#if defined(TILES)
     if( !use_tiles ) {
         for( const auto &pr : all_area ) {
             const tripoint relative_point = relative_view_pos( u, pr.first );
@@ -244,7 +239,7 @@ void game::draw_custom_explosion( const tripoint &, const std::map<tripoint, nc_
 
     // We need to save the layers because we will draw them in reverse order
     std::list< std::map<point, explosion_tile> > layers;
-    bool changed = false;
+    bool changed;
     while( !neighbors.empty() ) {
         std::map<point, explosion_tile> layer;
         changed = false;
@@ -274,7 +269,7 @@ void game::draw_custom_explosion( const tripoint &, const std::map<tripoint, nc_
         layers.push_front( std::move( layer ) );
     }
 
-#if defined(SDLTILES)
+#if defined(TILES)
     if( !use_tiles ) {
         draw_custom_explosion_curses( *this, layers );
         return;
@@ -286,7 +281,6 @@ void game::draw_custom_explosion( const tripoint &, const std::map<tripoint, nc_
         combined_layer.insert( layer.begin(), layer.end() );
         tilecontext->init_custom_explosion_layer( combined_layer );
         wrefresh(w_terrain);
-        try_update();
         draw_animation_delay(EXPLOSION_MULTIPLIER);
     }
 
@@ -300,14 +294,13 @@ namespace {
 void draw_bullet_curses(WINDOW *const w, player &u, map &m, const tripoint &t,
     char const bullet, tripoint const *const p, bool const wait)
 {
-    int const vx = u.posx() + u.view_offset.x;
-    int const vy = u.posy() + u.view_offset.y;
+    const tripoint vp = u.pos() + u.view_offset;
 
     if( p != nullptr ) {
-        m.drawsq( w, u, *p, false, true, vx, vy );
+        m.drawsq( w, u, *p, false, true, vp );
     }
 
-    mvwputch(w, POSY + (t.y - vy), POSX + (t.x - vx), c_red, bullet);
+    mvwputch(w, POSY + (t.y - vp.y), POSX + (t.x - vp.x), c_red, bullet);
     wrefresh(w);
 
     if (wait) {
@@ -317,7 +310,7 @@ void draw_bullet_curses(WINDOW *const w, player &u, map &m, const tripoint &t,
 
 } ///namespace
 
-#if defined(SDLTILES)
+#if defined(TILES)
 /* Bullet Animation -- Maybe change this to animate the ammo itself flying through the air?*/
 // need to have a version where there is no player defined, possibly. That way shrapnel works as intended
 void game::draw_bullet(Creature const &p, const tripoint &t, int const i,
@@ -352,7 +345,6 @@ void game::draw_bullet(Creature const &p, const tripoint &t, int const i,
     wrefresh(w_terrain);
 
     if( p.is_player() ) {
-        try_update();
         draw_animation_delay();
     }
 
@@ -380,7 +372,7 @@ void draw_hit_mon_curses( const tripoint &center, const monster &m, player const
 
 } // namespace
 
-#if defined(SDLTILES)
+#if defined(TILES)
 void game::draw_hit_mon( const tripoint &p, const monster &m, bool const dead )
 {
     if (!use_tiles) {
@@ -388,9 +380,8 @@ void game::draw_hit_mon( const tripoint &p, const monster &m, bool const dead )
         return;
     }
 
-    tilecontext->init_draw_hit( p, m.type->id );
+    tilecontext->init_draw_hit( p, m.type->id.str() );
     wrefresh(w_terrain);
-    try_update();
     draw_animation_delay();
 }
 #else
@@ -411,7 +402,7 @@ void draw_hit_player_curses(game const& g, player const &p, const int dam)
 }
 } //namespace
 
-#if defined(SDLTILES)
+#if defined(TILES)
 void game::draw_hit_player(player const &p, const int dam)
 {
     if (!use_tiles) {
@@ -429,7 +420,6 @@ void game::draw_hit_player(player const &p, const int dam)
 
     tilecontext->init_draw_hit( p.pos3(), type );
     wrefresh(w_terrain);
-    try_update();
     draw_animation_delay();
 }
 #else
@@ -447,19 +437,19 @@ void draw_line_curses(game &g, const tripoint &pos, tripoint const &center,
     (void)pos; // unused
 
     for( tripoint const &p : ret ) {
-        auto const critter = g.critter_at( p );
+        auto const critter = g.critter_at( p, true );
 
         // NPCs and monsters get drawn with inverted colors
         if( critter && g.u.sees( *critter ) ) {
             critter->draw( g.w_terrain, center, true );
         } else {
-            g.m.drawsq(g.w_terrain, g.u, p, true, true, center.x, center.y);
+            g.m.drawsq( g.w_terrain, g.u, p, true, true, center );
         }
     }
 }
 } //namespace
 
-#if defined(SDLTILES)
+#if defined(TILES)
 void game::draw_line( const tripoint &p, tripoint const &center, std::vector<tripoint> const &ret )
 {
     if( !u.sees( p ) ) {
@@ -497,7 +487,7 @@ void draw_line_curses(game &g, std::vector<tripoint> const &points)
 }
 } //namespace
 
-#if defined(SDLTILES)
+#if defined(TILES)
 void game::draw_line( const tripoint &p, std::vector<tripoint> const &vPoint )
 {
     draw_line_curses(*this, vPoint);
@@ -521,7 +511,7 @@ void draw_weather_curses(WINDOW *const win, weather_printable const &w)
 }
 } //namespace
 
-#if defined(SDLTILES)
+#if defined(TILES)
 void game::draw_weather(weather_printable const &w)
 {
     if (!use_tiles) {
@@ -590,7 +580,7 @@ void draw_sct_curses(game &g)
 }
 } //namespace
 
-#if defined(SDLTILES)
+#if defined(TILES)
 void game::draw_sct()
 {
     if (use_tiles) {
@@ -623,7 +613,7 @@ void draw_zones_curses( WINDOW *const w, const tripoint &start, const tripoint &
 }
 } //namespace
 
-#if defined(SDLTILES)
+#if defined(TILES)
 void game::draw_zones( const tripoint &start, const tripoint &end, const tripoint &offset )
 {
     if( use_tiles ) {

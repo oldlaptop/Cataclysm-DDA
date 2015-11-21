@@ -10,7 +10,8 @@
     "id" : "medieval",
     "items":[
       ["tinderbox", 4],
-      ["flint_steel", 7]
+      ["flint_steel", 7],
+      ["canteen_wood", 5]
     ]
   },{
     "type" : "item_group",
@@ -24,7 +25,9 @@
       ["chem_hexamine", 5],
       ["esbit_stove", 10],
       ["bottle_folding", 10],
-      ["mess_tin", 10]
+      ["mess_tin", 10],
+      ["canteen_wood", 5],
+      ["whistle_multitool", 5]
     ]
   },{
     "type" : "item_group",
@@ -37,7 +40,9 @@
       ["chem_hexamine", 5],
       ["esbit_stove", 10],
       ["bottle_folding", 5],
-      ["mess_tin", 10]
+      ["mess_tin", 10],
+      ["canteen_wood", 5],
+      ["whistle_multitool", 5]
     ]
   },{
     "type" : "item_group",
@@ -81,7 +86,9 @@
       ["bottle_metal", 2],
       ["chem_hexamine", 3],
       ["esbit_stove", 6],
-      ["mess_tin", 8]
+      ["mess_tin", 8],
+      ["canteen_wood", 2],
+      ["whistle_multitool", 1]
     ]
   },{
     "type" : "item_group",
@@ -104,9 +111,7 @@
       ["atlatl", 50],
       ["javelin", 30],
       ["hand_axe", 50],
-      ["throwing_stick", 50],
-      ["copper_knife", 10],
-      ["copper_ax", 10]
+      ["throwing_stick", 50]
     ]
   },{
     "type" : "item_group",

@@ -46,7 +46,7 @@ float damage_instance::type_damage( damage_type dt ) const
     float ret = 0;
     for( const auto &elem : damage_units ) {
         if( elem.type == dt ) {
-            ret += elem.amount;
+            ret += elem.amount * elem.damage_multiplier;
         }
     }
     return ret;
@@ -56,7 +56,7 @@ float damage_instance::total_damage() const
 {
     float ret = 0;
     for( const auto &elem : damage_units ) {
-        ret += elem.amount;
+        ret += elem.amount * elem.damage_multiplier;
     }
     return ret;
 }
@@ -86,7 +86,7 @@ void dealt_damage_instance::set_damage( damage_type dt, int amount )
 }
 int dealt_damage_instance::type_damage( damage_type dt ) const
 {
-    if( (size_t)dt < dealt_dams.size()  ) {
+    if( ( size_t )dt < dealt_dams.size() ) {
         return dealt_dams[dt];
     }
 
@@ -125,7 +125,7 @@ int resistances::type_resist( damage_type dt ) const
 }
 float resistances::get_effective_resist( const damage_unit &du ) const
 {
-    float effective_resist = 0.f;
+    float effective_resist;
     switch( du.type ) {
         case DT_BASH:
             effective_resist = std::max( type_resist( DT_BASH ) - du.res_pen, 0 ) * du.res_mult;
@@ -147,27 +147,38 @@ float resistances::get_effective_resist( const damage_unit &du ) const
 
 void ammo_effects( const tripoint &p, const std::set<std::string> &effects )
 {
+    if( effects.count( "EXPLOSIVE_SMALL" ) > 0 ) {
+        g->explosion( p, 24, 0.4 );
+    }
+
     if( effects.count( "EXPLOSIVE" ) > 0 ) {
-        g->explosion( p, 24, 0, false );
+        g->explosion( p, 24 );
     }
 
     if( effects.count( "FRAG" ) > 0 ) {
-        g->explosion( p, 12, 28, false );
+        g->explosion( p, 24, 0.4, 28, false );
     }
 
     if( effects.count( "NAPALM" ) > 0 ) {
-        g->explosion( p, 18, 0, true );
+        g->explosion( p, 4, 0.7, 0, true );
+        // More intense fire near the center
+        for( auto && pt : g->m.points_in_radius( p, 1, 0 ) ) {
+            g->m.add_field( pt, fd_fire, 1, 0 );
+        }
     }
 
     if( effects.count( "NAPALM_BIG" ) > 0 ) {
-        g->explosion( p, 72, 0, true );
+        g->explosion( p, 24, 0.8, 0, true );
+        // More intense fire near the center
+        for( auto && pt : g->m.points_in_radius( p, 3, 0 ) ) {
+            g->m.add_field( pt, fd_fire, 1, 0 );
+        }
     }
 
     if( effects.count( "MININUKE_MOD" ) > 0 ) {
-        g->explosion( p, 450, 0, false );
-        int junk1, junk2;
-        for( auto &&pt : g->m.points_in_radius( p, 6, 0 ) ) {
-            if( g->m.sees( p, pt, 3, junk1, junk2 ) &&
+        g->explosion( p, 450 );
+        for( auto && pt : g->m.points_in_radius( p, 6, 0 ) ) {
+            if( g->m.sees( p, pt, 3 ) &&
                 g->m.move_cost( pt ) > 0 ) {
                 g->m.add_field( pt, fd_nuke_gas, 3, 0 );
             }
@@ -175,36 +186,45 @@ void ammo_effects( const tripoint &p, const std::set<std::string> &effects )
     }
 
     if( effects.count( "ACIDBOMB" ) > 0 ) {
-        for( auto &&pt : g->m.points_in_radius( p, 1, 0 ) ) {
+        for( auto && pt : g->m.points_in_radius( p, 1, 0 ) ) {
             g->m.add_field( pt, fd_acid, 3, 0 );
         }
     }
 
+    if( effects.count( "ACID_DROP" ) > 0 ) {
+        g->m.add_field( p, fd_acid, 1, 0 );
+    }
+
     if( effects.count( "EXPLOSIVE_BIG" ) > 0 ) {
-        g->explosion( p, 40, 0, false );
+        g->explosion( p, 40 );
     }
 
     if( effects.count( "EXPLOSIVE_HUGE" ) > 0 ) {
-        g->explosion( p, 80, 0, false );
+        g->explosion( p, 80 );
     }
 
+    if( effects.count( "TOXICGAS" ) > 0 ) {
+        for( auto && pt : g->m.points_in_radius( p, 1, 0 ) ) {
+            g->m.add_field( pt, fd_toxic_gas, 3, 0 );
+        }
+    }
     if( effects.count( "TEARGAS" ) > 0 ) {
-        for( auto &&pt : g->m.points_in_radius( p, 2, 0 ) ) {
+        for( auto && pt : g->m.points_in_radius( p, 2, 0 ) ) {
             g->m.add_field( pt, fd_tear_gas, 3, 0 );
         }
     }
     if( effects.count( "GAS_FUNGICIDAL" ) > 0 ) {
-        for( auto &&pt : g->m.points_in_radius( p, 1, 0 ) ) {
+        for( auto && pt : g->m.points_in_radius( p, 1, 0 ) ) {
             g->m.add_field( pt, fd_fungicidal_gas, 3, 0 );
         }
     }
     if( effects.count( "SMOKE" ) > 0 ) {
-        for( auto &&pt : g->m.points_in_radius( p, 1, 0 ) ) {
+        for( auto && pt : g->m.points_in_radius( p, 1, 0 ) ) {
             g->m.add_field( pt, fd_smoke, 3, 0 );
         }
     }
     if( effects.count( "SMOKE_BIG" ) > 0 ) {
-        for( auto &&pt : g->m.points_in_radius( p, 6, 0 ) ) {
+        for( auto && pt : g->m.points_in_radius( p, 6, 0 ) ) {
             g->m.add_field( pt, fd_smoke, 18, 0 );
         }
     }
@@ -214,7 +234,9 @@ void ammo_effects( const tripoint &p, const std::set<std::string> &effects )
     }
 
     if( effects.count( "NO_BOOM" ) == 0 && effects.count( "FLAME" ) > 0 ) {
-        g->explosion( p, 4, 0, true );
+        for( auto && pt : g->m.points_in_radius( p, 1, 0 ) ) {
+            g->m.add_field( pt, fd_fire, 1, 0 );
+        }
     }
 
     if( effects.count( "FLARE" ) > 0 ) {
@@ -222,13 +244,13 @@ void ammo_effects( const tripoint &p, const std::set<std::string> &effects )
     }
 
     if( effects.count( "LIGHTNING" ) > 0 ) {
-        for( auto &&pt : g->m.points_in_radius( p, 1, 0 ) ) {
+        for( auto && pt : g->m.points_in_radius( p, 1, 0 ) ) {
             g->m.add_field( pt, fd_electricity, 3, 0 );
         }
     }
 
     if( effects.count( "PLASMA" ) > 0 ) {
-        for( auto &&pt : g->m.points_in_radius( p, 1, 0 ) ) {
+        for( auto && pt : g->m.points_in_radius( p, 1, 0 ) ) {
             if( one_in( 2 ) ) {
                 g->m.add_field( pt, fd_plasma, rng( 2, 3 ), 0 );
             }
@@ -247,6 +269,7 @@ int aoe_size( const std::set<std::string> &tags )
                tags.count( "EXPLOSIVE_BIG" ) ) {
         return 3;
     } else if( tags.count( "EXPLOSIVE" ) ||
+               tags.count( "EXPLOSIVE_SMALL" ) ||
                tags.count( "FRAG" ) ) {
         return 2;
     } else if( tags.count( "ACIDBOMB" ) ||
@@ -259,8 +282,7 @@ int aoe_size( const std::set<std::string> &tags )
 }
 
 
-static const std::map<std::string, damage_type> dt_map =
-{
+static const std::map<std::string, damage_type> dt_map = {
     { "true", DT_TRUE },
     { "biological", DT_BIOLOGICAL },
     { "bash", DT_BASH },
@@ -280,5 +302,58 @@ damage_type dt_by_name( const std::string &name )
     }
 
     return iter->second;
+}
+
+projectile::projectile() :
+    speed( 0 ),
+    drop( nullptr )
+{ }
+
+projectile::projectile( const projectile &other )
+{
+    ( *this ) = other;
+}
+
+projectile &projectile::operator=( const projectile &other )
+{
+    impact = other.impact;
+    speed = other.speed;
+    proj_effects = other.proj_effects;
+    set_drop( other.get_drop() );
+
+    return *this;
+}
+
+const item &projectile::get_drop() const
+{
+    if( drop != nullptr ) {
+        return *drop;
+    }
+
+    static const item null_drop;
+    return null_drop;
+}
+
+void projectile::set_drop( const item &it )
+{
+    if( it.is_null() ) {
+        unset_drop();
+    } else {
+        drop.reset( new item( it ) );
+    }
+}
+
+void projectile::set_drop( item &&it )
+{
+    if( it.is_null() ) {
+        unset_drop();
+    } else {
+        drop.reset( new item( std::move( it ) ) );
+    }
+}
+
+void projectile::unset_drop()
+{
+    drop.reset( nullptr );
 }
 

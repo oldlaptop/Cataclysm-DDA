@@ -190,8 +190,7 @@
         "id" : "clip",
         "name" : "extended magazine",
         "clip_size_modifier" : 50,
-        "dispersion_modifier" : 15,
-        "description" : "Increases the ammunition capacity of your firearm by 50%, but the added bulk reduces accuracy slightly.",
+        "description" : "Increases the ammunition capacity of your firearm by 50%.",
         "location": "magazine",
         "weight" : 495,
         "to_hit" : -1,
@@ -209,8 +208,7 @@
         "id" : "clip2",
         "name" : "double magazine",
         "clip_size_modifier" : 100,
-        "dispersion_modifier" : 30,
-        "description" : "Completely doubles the ammunition capacity of your firearm, but the added bulk reduces accuracy and increases recoil.",
+        "description" : "Completely doubles the ammunition capacity of your firearm.",
         "location": "magazine",
         "weight" : 660,
         "to_hit" : 0,
@@ -221,7 +219,6 @@
         "volume" : 2,
         "bashing" : 0,
         "cutting" : 0,
-        "recoil_modifier" : 30,
         "price" : 7200
     },
     {
@@ -645,7 +642,8 @@
         "flags" : ["NON_STUCK", "SPEAR", "REACH_ATTACK", "BAYONET"],
         "recoil_modifier" : 45,
         "mod_targets" : ["shotgun", "smg", "rifle", "crossbow", "launcher"],
-        "bashing" : 0
+        "bashing" : 0,
+        "qualities": [["CUT", 1]]
     },
     {
         "type" : "GUNMOD",
@@ -665,7 +663,8 @@
         "flags" : ["NON_STUCK", "CHOP", "REACH_ATTACK", "BAYONET"],
         "recoil_modifier" : 105,
         "mod_targets" : ["shotgun", "rifle", "crossbow", "launcher"],
-        "bashing" : 0
+        "bashing" : 0,
+        "qualities": [["CUT", 1]]
     },
     {
         "type" : "GUNMOD",
@@ -685,8 +684,43 @@
         "recoil_modifier" : 45,
         "mod_targets" : ["pistol", "smg", "crossbow"],
         "bashing" : 0,
-        "flags" : ["STAB", "BAYONET"]
+        "flags" : ["STAB", "BAYONET"],
+        "qualities": [["CUT", 1]]
     },
+    {
+        "type" : "GUNMOD",
+        "id" : "lemat_revolver_shotgun",
+        "name" : "LeMat revolver shotgun",
+        "location": "underbarrel",
+        "weight" : 500,
+        "color" : "light_red",
+        "to_hit" : -1,
+        "dispersion_modifier" : 0,
+        "price" : 95000,
+        "description" : "",
+        "symbol" : ":",
+        "material" : ["steel", "null"],
+        "volume" : 0,
+        "cutting" : 0,
+        "mod_targets" : ["pistol"],
+        "bashing" : 0,
+        "flags" : ["RELOAD_ONE", "IRREMOVABLE"],
+        "gun_data" : {
+            "skill": "shotgun",
+            "ammo" : "shot",
+            "clip_size" : 1,
+            "dispersion" : 300, "//" : "same as the ashot",
+            "damage" : 2,
+            "range" : -2,
+            "aim_speed" : -1, "//" : "just a place holder, TODO: fill in the correct value",
+            "sight_dispersion" : -1, "//" : "just a place holder, TODO: fill in the correct value",
+            "recoil" : 375, "//" : "same as the ashot",
+            "durability" : 100, "//" : "just a place holder, TODO: fill in the correct value",
+            "reload" : 100, "//" : "just a place holder, TODO: fill in the correct value"
+        },
+        "skill_required": 1,
+        "skill": "shotgun"
+    },    
     {
         "type" : "GUNMOD",
         "id" : "u_shotgun",
@@ -799,7 +833,7 @@
         "cutting" : 0,
         "mod_targets" : ["rifle"],
         "bashing" : 0,
-        "flags" : ["RELOAD_ONE"],
+        "flags" : ["RELOAD_ONE", "IRREMOVABLE"],
         "gun_data" : {
             "skill": "shotgun",
             "ammo" : "shot",
@@ -814,7 +848,74 @@
         },
         "skill_required": 1,
         "skill": "shotgun"
-    },    
+    },
+    {
+        "type" : "GUNMOD",
+        "id" : "combination_gun_shotgun_pipe",
+        "name" : "pipe combination gun shotgun",
+        "location": "underbarrel",
+        "weight" : 1134,
+        "color" : "light_red",
+        "to_hit" : -1,
+        "price" : 10000,
+        "description" : "",
+        "symbol" : ":",
+        "material" : ["steel", "null"],
+        "volume" : 4,
+        "cutting" : 0,
+        "mod_targets" : ["rifle"],
+        "bashing" : 0,
+        "flags" : ["RELOAD_ONE", "IRREMOVABLE"],
+        "gun_data" : {
+            "skill": "shotgun", "//" : "Derived from pipe shotgun",
+            "ammo" : "shot",
+            "flags": ["RELOAD_ONE", "NEVER_JAMS", "RELOAD_EJECT"],
+            "clip_size" : 1,
+            "ranged_damage" : 2,
+            "dispersion" : 555,
+            "aim_speed" : 0,
+            "sight_dispersion" : 150,
+            "recoil" : 300,
+            "durability" : 6,
+            "reload" : 100,
+            "loudness" : 175
+        },
+        "skill_required": 1,
+        "skill": "shotgun"
+    },
+    {
+        "type" : "GUNMOD",
+        "id" : "ksg_aux_shotgun", "//" : "This is the same gun, just feeding from the other magazine.",
+        "name" : "KSG second magazine",
+        "location": "underbarrel",
+        "weight" : 0,
+        "color" : "light_red",
+        "to_hit" : -1,
+        "price" : 0,
+        "description" : "",
+        "symbol" : ":",
+        "material" : ["steel", "null"],
+        "volume" : 0,
+        "cutting" : 0,
+        "mod_targets" : ["shotgun"],
+        "bashing" : 0,
+        "flags" : ["RELOAD_ONE", "IRREMOVABLE"],
+        "gun_data" : {
+            "skill": "shotgun", "//" : "Stats should mirror the main weapon.",
+            "ammo" : "shot",
+            "clip_size" : 7,
+            "ranged_damage": 3,
+            "dispersion" : 45,
+            "aim_speed" : 3,
+            "sight_dispersion" : 105,
+            "recoil" : 15,
+            "durability" : 100,
+            "reload" : 120,
+            "loudness" : 200
+        },
+        "skill_required": 1,
+        "skill": "shotgun"
+    },
     {
         "type" : "GUNMOD",
         "id" : "gun_crossbow",
@@ -1301,7 +1402,8 @@
         "flags" : ["NON_STUCK", "SPEAR", "BAYONET"],
         "recoil_modifier" : 45,
         "mod_targets" : ["shotgun", "smg", "rifle", "crossbow", "launcher"],
-        "bashing" : 0
+        "bashing" : 0,
+        "qualities": [["CUT", 1]]
     },
     {
         "type" : "GUNMOD",
@@ -1321,7 +1423,8 @@
         "flags" : ["NON_STUCK", "CHOP", "BAYONET"],
         "recoil_modifier" : 105,
         "mod_targets" : ["shotgun", "rifle", "crossbow", "launcher"],
-        "bashing" : 0
+        "bashing" : 0,
+        "qualities": [["CUT", 1]]
     },
     {
         "type" : "GUNMOD",
@@ -1341,7 +1444,8 @@
         "recoil_modifier" : 45,
         "mod_targets" : ["pistol", "smg", "crossbow"],
         "bashing" : 0,
-        "flags" : ["STAB", "BAYONET"]
+        "flags" : ["STAB", "BAYONET"],
+        "qualities": [["CUT", 1]]
     },
     {
         "type" : "GUNMOD",
